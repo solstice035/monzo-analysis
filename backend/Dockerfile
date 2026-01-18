@@ -7,8 +7,8 @@ WORKDIR /app
 # Install uv for fast dependency resolution
 RUN pip install --no-cache-dir uv
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy dependency files and README (required by hatchling)
+COPY pyproject.toml README.md ./
 
 # Create virtual environment and install dependencies
 RUN uv venv /opt/venv && \

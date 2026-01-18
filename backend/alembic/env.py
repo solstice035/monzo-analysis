@@ -1,6 +1,7 @@
 """Alembic environment configuration."""
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,7 +9,6 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.config import Settings
 from app.models import Base
 
 # Alembic Config object
@@ -23,9 +23,11 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Get database URL from settings."""
-    settings = Settings()
-    return settings.database_url
+    """Get database URL from environment variable."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise ValueError("DATABASE_URL environment variable is required")
+    return url
 
 
 def run_migrations_offline() -> None:
