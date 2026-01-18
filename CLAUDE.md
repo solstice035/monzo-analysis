@@ -269,16 +269,55 @@ curl -X POST -H 'Content-Type: application/json' \
 | PRD deep dive | ✅ Complete | 2026-01-18 |
 | TRD | ✅ Complete | 2026-01-18 |
 | Visual identity | ✅ Complete | 2026-01-18 |
-| MVP implementation | ⏳ Pending | - |
+| Phase 1: Foundation | ✅ Complete | 2026-01-18 |
+| Phase 2: Core Features | ✅ Complete | 2026-01-18 |
+| Phase 3: Dashboard | ✅ Complete | 2026-01-18 |
+| Phase 4: Docker Setup | ✅ Complete | 2026-01-18 |
+| MVP implementation | ✅ Complete | 2026-01-18 |
+
+---
+
+## Quick Start
+
+### Development
+
+```bash
+# Backend
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -e ".[dev]"
+pytest  # Run tests
+
+# Frontend
+cd frontend
+npm install
+npm run dev  # Start dev server at http://localhost:5173
+```
+
+### Production (Docker)
+
+```bash
+# Copy environment template
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run with Docker Compose
+docker compose up -d
+
+# Run migrations
+docker compose run --rm migrations
+```
+
+Access the app at http://localhost
 
 ---
 
 ## Next Steps
 
-1. **Monzo Developer Account** - Register app, get API credentials
-2. **Phase 1: Foundation** - Backend scaffold, database models, OAuth flow
-3. **Phase 2: Core Features** - Rules engine, budgets, Slack notifications
-4. **Phase 3: Dashboard** - React frontend with full CRUD
-5. **Phase 4: Polish** - Testing, Docker setup, deployment
+1. **Monzo Developer Account** - Register app at https://developers.monzo.com
+2. **Configure `.env`** - Add Monzo OAuth credentials, Slack webhook URL
+3. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
+4. **First OAuth** - Visit http://localhost:8000/api/v1/auth/login to authenticate
+5. **Monitor** - Check Slack channel for daily summaries
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
