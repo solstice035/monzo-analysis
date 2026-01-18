@@ -97,20 +97,28 @@ Personal finance tracking currently requires manual effort—exporting transacti
 | ID | Feature | Priority | Value |
 |----|---------|----------|-------|
 | FR-01 | Scheduled data extraction from Monzo API | Must Have | Automated transaction sync without manual export |
-| FR-02 | Capture all transaction details (amount, merchant, time) | Must Have | Foundation for all analysis |
+| FR-02 | Capture full transaction payload for rich analysis | Must Have | Foundation for all analysis |
 | FR-03 | Handle refunds and adjustments correctly | Should Have | Accurate spend tracking |
 | FR-04 | Store transaction history for analysis | Must Have | Enables trends and reporting |
 
-**Note:** FR-01 uses polling/scheduled extraction rather than webhooks. User already receives mobile notifications from Monzo; this app focuses on analytics rather than real-time alerts.
+**Notes:**
+- **FR-01:** Uses polling/scheduled extraction rather than webhooks. User already receives mobile notifications from Monzo; this app focuses on analytics rather than real-time alerts.
+- **FR-02:** Capture full payload including: all merchant metadata (logo, address, MCC), local currency/amount for foreign transactions, counterparty details for transfers, settlement status, existing Monzo notes/receipts.
+- **FR-03:** Refunds appear as separate positive-amount transactions. System must correlate refunds with original purchases by merchant + amount + timing.
 
 ### 4.2 Categorisation
 
 | ID | Feature | Priority | Value |
 |----|---------|----------|-------|
-| FR-05 | Auto-categorise transactions by merchant | Must Have | Reduces manual effort |
+| FR-05 | Auto-categorise transactions using layered rules | Must Have | Reduces manual effort |
 | FR-06 | Allow manual category override | Must Have | User control and accuracy |
-| FR-07 | Learn from manual overrides to improve accuracy | Could Have | Continuous improvement |
+| FR-07 | Learn from manual overrides to improve accuracy | Should Have | Continuous improvement |
 | FR-08 | Identify and flag recurring transactions | Should Have | Subscription visibility |
+
+**Notes:**
+- **FR-05:** Categorisation layer must respect: (1) user's existing Monzo custom categories, (2) Monzo's default merchant categories, (3) budget category mapping rules. Priority order TBD in TRD.
+- **FR-05 Rules Engine:** Beyond simple merchant→category mapping, support value-based rules (e.g., "groceries > £100 = Big Shop"), merchant + amount combinations, and time-based patterns.
+- **FR-07:** Architecture should support swappable classification backend (rules → ML). Store training data: original category, user override, transaction features. ML layer planned for future iteration.
 
 ### 4.3 Budget Management
 
@@ -297,10 +305,28 @@ The system should accept budget data in common spreadsheet formats with:
 - [Voice Ideation PRD](PRD-voice-ideation.md)
 - [Project Roadmap](2026-01-14%20-%20null.md)
 
-### B. Document History
+### B. User Journeys (Summary)
+
+#### First-Time Setup
+1. OAuth with Monzo → Select accounts (personal, joint, pots) → Initial sync (configurable history depth)
+2. Budget import (spreadsheet or fresh start) → Category mapping → Rules configuration
+3. Notification preferences → Sync schedule → Dashboard tutorial
+
+#### Regular Usage
+- **Daily (2-3 min):** Quick health check, category progress, alerts review
+- **Weekly (10-15 min):** Summary review, reclassify mismatched transactions, check recurring payments
+- **Monthly:** Budget reset, trend review, adjust limits, subscription audit
+
+#### Key Flows
+- **Reclassification:** Edit category → Optional: create rule → Updates local + Monzo metadata → ML training data stored
+- **Alerts:** 80% threshold warning → 100% overspend alert → Review + decision
+- **Edge cases:** Refund correlation, pot transfer handling (exclude from spending), joint account split, foreign currency display
+
+### C. Document History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 0.1 | Jan 2025 | Nick | Initial draft |
 | 0.2 | Jan 2025 | Nick | Removed technical content; aligned to PRD spec |
 | 0.3 | Jan 2025 | Nick | Pivoted from webhooks to scheduled extraction; renamed project; updated FR-01, US-01, success metrics |
+| 0.4 | Jan 2025 | Claude | PRD deep dive: enhanced FR-02/FR-05/FR-07; added rules engine; user journey mapping; API validation complete |
