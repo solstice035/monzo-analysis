@@ -15,3 +15,8 @@ node_modules/
 dist/
 build/
 __pycache__/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/

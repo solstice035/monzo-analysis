@@ -1,0 +1,1 @@
+"""Monzo Analysis backend application."""
