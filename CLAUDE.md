@@ -6,17 +6,18 @@ Personal finance tracking and analytics using the Monzo API. Scheduled data extr
 
 **Key approach:** Polling/scheduled extraction (not webhooks). Focus is analytics, not real-time notifications.
 
-## PRD Reference
+## Documentation
 
 - **Original PRD:** [[PRD-monzo-webhook]] in Obsidian (`2-Areas/Ideas/`)
-- **Local copy:** [docs/PRD.md](docs/PRD.md)
-- **Current version:** 0.4 (PRD deep dive complete)
+- **Local PRD:** [docs/PRD.md](docs/PRD.md)
+- **TRD:** [docs/TRD.md](docs/TRD.md)
 
 See PRD for full feature requirements (FR-01 to FR-24), user stories, and success metrics.
+See TRD for architecture, data model, API design, and implementation approach.
 
 ---
 
-## Key Decisions (from Brainstorm)
+## Key Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -25,6 +26,10 @@ See PRD for full feature requirements (FR-01 to FR-24), user stories, and succes
 | Categorisation | Layered rules engine | Respect existing Monzo categories + custom rules |
 | ML learning | Future iteration | Architecture supports swap from rules → ML |
 | Pot transfers | Exclude from spending | Pots are savings, not spending |
+| Notifications | Slack (`#monzo`) | Single channel, webhook integration, rich formatting |
+| Deployment | Docker on Unraid | Always-on, no ongoing cost, portable to DigitalOcean |
+| Dashboard | Full CRUD UI | Configure rules, budgets, trigger syncs from browser |
+| Budget reset | Configurable day (1-28) | Aligns with payday, not calendar month |
 
 ---
 
@@ -115,35 +120,71 @@ OAuth → Account selection → Initial sync → Budget import → Category mapp
 ```
 monzo-analysis/
 ├── CLAUDE.md              # This file
-├── docs/
-│   ├── PRD.md             # Product requirements
-│   └── api-reference/     # Monzo API docs (12 files)
-├── src/                   # Source code (TBD)
-└── .gitignore
+├── docker-compose.yml     # Container orchestration
+├── .env.example           # Environment template
+├── backend/
+│   ├── app/               # FastAPI application
+│   │   ├── api/           # Route handlers
+│   │   ├── models/        # SQLAlchemy models
+│   │   ├── services/      # Business logic
+│   │   └── schemas/       # Pydantic schemas
+│   ├── alembic/           # Database migrations
+│   └── tests/
+├── frontend/
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── pages/         # Dashboard views
+│   │   ├── hooks/         # TanStack Query hooks
+│   │   └── lib/           # Utilities
+│   └── public/
+└── docs/
+    ├── PRD.md             # Product requirements
+    ├── TRD.md             # Technical requirements
+    └── api-reference/     # Monzo API docs
 ```
 
 ---
 
 ## Tech Stack
 
-*To be determined in TRD*
+### Backend (Python 3.12+)
 
-Considerations:
-- Python (FastAPI/Django) or Node (Next.js) backend
-- PostgreSQL for transaction storage
-- Redis for caching/job queue
-- React/Next.js frontend
-- OAuth 2.0 for Monzo auth
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| FastAPI | 0.128.x | Async web framework |
+| SQLAlchemy | 2.1.x | Async ORM |
+| APScheduler | 4.x | Scheduled sync (native async) |
+| httpx | latest | Async HTTP client |
+| asyncpg | latest | PostgreSQL driver |
+
+### Frontend
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| React | 18.x+ | UI framework |
+| Vite | 7.x | Build tool |
+| shadcn/ui | latest | Components |
+| TanStack Query | 5.x | Data fetching |
+| Recharts | latest | Charts |
+
+### Infrastructure
+
+| Component | Purpose |
+|-----------|---------|
+| PostgreSQL 16 | Primary database |
+| Docker Compose | Container orchestration |
+| Slack webhooks | Notifications |
 
 ---
 
-## Open Questions (for TRD)
+## Resolved Questions (from TRD)
 
-From PRD Section 11:
-- [ ] Joint account handling: separate budgets or combined?
-- [ ] Pot transfers: exclude entirely or track separately?
-- [ ] Sync frequency: hourly, daily, or manual trigger?
-- [ ] Rules priority order for categorisation conflicts
+| Question | Resolution |
+|----------|------------|
+| Joint account handling | Configurable per-budget (combined or separate) |
+| Pot transfers | Excluded from spending totals |
+| Sync frequency | Daily default, configurable, with manual trigger |
+| Rules priority | Higher priority number = checked first, all conditions AND |
 
 ---
 
@@ -154,13 +195,17 @@ From PRD Section 11:
 | PRD Gate 1 | ✅ Pass | Jan 2025 |
 | Project scaffold | ✅ Complete | 2026-01-17 |
 | PRD deep dive | ✅ Complete | 2026-01-18 |
-| TRD | ⏳ Pending | - |
+| TRD | ✅ Complete | 2026-01-18 |
 | MVP implementation | ⏳ Pending | - |
 
 ---
 
 ## Next Steps
 
-1. **Create TRD** - Tech stack, data model, API design
-2. **Monzo Developer Account** - Register app, get API credentials
-3. **Begin MVP** - OAuth flow, transaction sync, basic dashboard
+1. **Monzo Developer Account** - Register app, get API credentials
+2. **Phase 1: Foundation** - Backend scaffold, database models, OAuth flow
+3. **Phase 2: Core Features** - Rules engine, budgets, Slack notifications
+4. **Phase 3: Dashboard** - React frontend with full CRUD
+5. **Phase 4: Polish** - Testing, Docker setup, deployment
+
+See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
