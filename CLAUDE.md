@@ -175,6 +175,33 @@ monzo-analysis/
 | Docker Compose | Container orchestration |
 | Slack webhooks | Notifications |
 
+### Environment Variables
+
+Configured in `.env` (not committed):
+
+| Variable | Purpose |
+|----------|---------|
+| `MONZO_CLIENT_ID` | OAuth client ID from developer portal |
+| `MONZO_CLIENT_SECRET` | OAuth client secret |
+| `MONZO_REDIRECT_URI` | Callback URL for OAuth flow |
+| `MONZO_OWNER_ID` | Your Monzo account/user ID |
+| `SLACK_WEBHOOK_URL` | Incoming webhook for notifications (optional) |
+
+### Slack Webhook Setup
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. **Create New App** → "From scratch" → Name it, select workspace
+3. **Incoming Webhooks** → Toggle **On**
+4. **Add New Webhook to Workspace** → Select `#monzo` channel → **Allow**
+5. Copy the webhook URL to `.env`
+
+Test with:
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"text":"Hello from Monzo Analysis!"}' \
+  $SLACK_WEBHOOK_URL
+```
+
 ---
 
 ## Resolved Questions (from TRD)
