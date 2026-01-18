@@ -8,13 +8,13 @@ tags:
   - ideas
 ---
 
-# PRD: Monzo Webhook Financial Tracker
+# PRD: Monzo Financial Tracker
 
 ## Document Info
 
 | Field | Value |
 |-------|-------|
-| **Project Name** | Monzo Webhook Financial Tracker |
+| **Project Name** | Monzo Financial Tracker |
 | **Author** | Nick |
 | **Status** | Draft |
 | **Created** | January 2025 |
@@ -71,7 +71,7 @@ Personal finance tracking currently requires manual effort—exporting transacti
 
 | ID | As a... | I want to... | So that... | Acceptance Criteria |
 |----|---------|--------------|------------|---------------------|
-| US-01 | User | Receive instant notifications of transactions | I'm aware of all spending in real-time | Notification within seconds of transaction |
+| US-01 | User | Have my transactions automatically synced for analysis | I can review spending without manual export | Transactions synced at least daily |
 | US-02 | User | See transactions auto-categorised | I don't have to manually tag every purchase | 90%+ transactions categorised automatically |
 | US-03 | User | View budget vs actuals for current month | I know if I'm on track | Dashboard shows spend vs budget per category |
 | US-04 | User | Get alerts when approaching category budget limits | I can adjust behaviour before overspending | Alert at 80% and 100% thresholds |
@@ -96,10 +96,12 @@ Personal finance tracking currently requires manual effort—exporting transacti
 
 | ID | Feature | Priority | Value |
 |----|---------|----------|-------|
-| FR-01 | Receive real-time transaction notifications from bank | Must Have | Enables instant awareness |
+| FR-01 | Scheduled data extraction from Monzo API | Must Have | Automated transaction sync without manual export |
 | FR-02 | Capture all transaction details (amount, merchant, time) | Must Have | Foundation for all analysis |
 | FR-03 | Handle refunds and adjustments correctly | Should Have | Accurate spend tracking |
 | FR-04 | Store transaction history for analysis | Must Have | Enables trends and reporting |
+
+**Note:** FR-01 uses polling/scheduled extraction rather than webhooks. User already receives mobile notifications from Monzo; this app focuses on analytics rather than real-time alerts.
 
 ### 4.2 Categorisation
 
@@ -117,9 +119,11 @@ Personal finance tracking currently requires manual effort—exporting transacti
 | FR-09 | Import budget from existing spreadsheet | Must Have | Preserves existing planning |
 | FR-10 | Define budget categories with monthly limits | Must Have | Enables tracking |
 | FR-11 | Map transaction categories to budget categories | Must Have | Links spending to budget |
-| FR-12 | Calculate real-time spend vs budget per category | Must Have | Core value proposition |
+| FR-12 | Calculate current spend vs budget per category | Must Have | Core value proposition |
 | FR-13 | Calculate overall monthly spend vs total budget | Must Have | High-level visibility |
 | FR-14 | Support budget rollover (optional per category) | Could Have | Flexibility for variable spending |
+
+**Note:** "Current" reflects data as of last sync (daily recommended).
 
 ### 4.4 Alerts & Notifications
 
@@ -147,8 +151,8 @@ Personal finance tracking currently requires manual effort—exporting transacti
 
 | Metric | Target | Measurement Method |
 |--------|--------|-------------------|
-| Transaction processing latency | < 5 seconds | Time from bank event to notification |
-| Budget vs actual visibility | Real-time, always current | System uptime and data freshness |
+| Transaction sync freshness | < 24 hours | Time since last successful sync |
+| Budget vs actual visibility | Current as of last sync | System uptime and data freshness |
 | Manual categorisation required | < 10% of transactions | Count of manual overrides |
 | Cost reduction opportunities identified | £100+/month potential | Flagged subscriptions and recommendations |
 | Time spent on manual finance tracking | 80% reduction | User survey (before/after) |
@@ -160,7 +164,7 @@ Personal finance tracking currently requires manual effort—exporting transacti
 
 ### 6.1 In Scope
 
-- Real-time transaction monitoring from Monzo accounts
+- Scheduled transaction extraction from Monzo accounts (personal, joint, pots)
 - Automatic and manual transaction categorisation
 - Budget import and tracking against actuals
 - Threshold-based alerts and notifications
@@ -249,12 +253,17 @@ The system should accept budget data in common spreadsheet formats with:
 
 ## 11. Open Questions
 
+### Resolved
+- [x] ~~Preferred notification frequency: per-transaction vs digest?~~ → **Digest/scheduled sync preferred; user has Monzo mobile notifications turned off**
+- [x] ~~Real-time webhooks vs polling?~~ → **Polling/scheduled extraction; focus is analytics not instant alerts**
+
+### Remaining
 - [ ] Should partner/spouse have separate view or shared dashboard?
 - [ ] How to handle joint account vs personal account transactions?
 - [ ] Should Pot transfers be tracked as transactions or excluded?
 - [ ] Integration with other accounts (savings, credit cards) in future?
-- [ ] Preferred notification frequency: per-transaction vs digest?
 - [ ] What budget categories are most common/useful?
+- [ ] Sync frequency preference (hourly, daily, manual)?
 
 ---
 
@@ -294,3 +303,4 @@ The system should accept budget data in common spreadsheet formats with:
 |---------|------|--------|---------|
 | 0.1 | Jan 2025 | Nick | Initial draft |
 | 0.2 | Jan 2025 | Nick | Removed technical content; aligned to PRD spec |
+| 0.3 | Jan 2025 | Nick | Pivoted from webhooks to scheduled extraction; renamed project; updated FR-01, US-01, success metrics |
