@@ -274,6 +274,8 @@ curl -X POST -H 'Content-Type: application/json' \
 | Phase 3: Dashboard | ✅ Complete | 2026-01-18 |
 | Phase 4: Docker Setup | ✅ Complete | 2026-01-18 |
 | MVP implementation | ✅ Complete | 2026-01-18 |
+| OAuth Flow Tested | ✅ Complete | 2026-01-18 |
+| Local Deployment | ✅ Running | 2026-01-18 |
 
 ---
 
@@ -314,10 +316,19 @@ Access the app at http://localhost
 
 ## Next Steps
 
-1. **Monzo Developer Account** - Register app at https://developers.monzo.com
-2. **Configure `.env`** - Add Monzo OAuth credentials, Slack webhook URL
-3. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
-4. **First OAuth** - Visit http://localhost:8000/api/v1/auth/login to authenticate
-5. **Monitor** - Check Slack channel for daily summaries
+1. ~~**Monzo Developer Account**~~ ✅ Registered
+2. ~~**Configure `.env`**~~ ✅ Configured
+3. ~~**First OAuth**~~ ✅ Tested successfully (2026-01-18)
+4. **Token Persistence** - Implement database storage for OAuth tokens
+5. **Initial Sync** - Trigger first transaction sync from Monzo
+6. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
+7. **Slack Integration** - Configure webhook for daily summaries
+
+### Known Issues
+
+See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for code review findings:
+- Token storage is placeholder (returns success but doesn't persist)
+- N+1 queries in budget status calculation (performance)
+- Silent Slack failures need logging
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
