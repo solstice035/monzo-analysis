@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monzo Analysis — Visual Identity</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Monzo Hot Coral - THE HERO */
+            --hot-coral: #FF5A5F;
+            --coral-bright: #FF7C7E;
+            --coral-deep: #E54D51;
+            --coral-glow: rgba(255, 90, 95, 0.5);
+
+            /* Navy - Bold Contrast */
+            --navy-black: #14233C;
+            --navy-deep: #1B3A5C;
+            --navy-mid: #2B5278;
+
+            /* Electric Accents */
+            --mint: #00D9B5;
+            --yellow: #FFD93D;
+            --sky: #4FC3F7;
+
+            /* Neutrals */
+            --ink: #0A1628;
+            --charcoal: #1E293B;
+            --slate: #475569;
+            --stone: #94A3B8;
+            --silver: #E2E8F0;
+            --snow: #F8FAFC;
+            --white: #FFFFFF;
+
+            /* Typography */
+            --font-display: 'Bebas Neue', Impact, sans-serif;
+            --font-body: 'Outfit', system-ui, sans-serif;
+            --font-mono: 'Space Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--navy-black);
+            color: var(--white);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ═══════════════════════════════════════
+           HERO HEADER
+        ═══════════════════════════════════════ */
+        .hero {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--navy-black) 0%, var(--navy-deep) 50%, var(--navy-black) 100%);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -20%;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, var(--coral-glow) 0%, transparent 60%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 217, 181, 0.2) 0%, transparent 60%);
+            animation: pulse 5s ease-in-out infinite reverse;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+        }
+
+        .brand-mark {
+            display: inline-flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            padding: 0.75rem 1.5rem 0.75rem 0.75rem;
+            background: rgba(255, 90, 95, 0.15);
+            border: 2px solid var(--hot-coral);
+            border-radius: 100px;
+        }
+
+        .brand-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--hot-coral);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 2rem;
+            color: var(--white);
+            box-shadow: 0 0 30px var(--coral-glow);
+        }
+
+        .brand-text {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            letter-spacing: 0.15em;
+            color: var(--white);
+        }
+
+        .hero-title {
+            font-family: var(--font-display);
+            font-size: clamp(4rem, 15vw, 12rem);
+            line-height: 0.9;
+            letter-spacing: 0.02em;
+            margin-bottom: 2rem;
+        }
+
+        .hero-title .line1 { color: var(--white); }
+        .hero-title .line2 {
+            color: var(--hot-coral);
+            text-shadow: 0 0 60px var(--coral-glow);
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: var(--stone);
+            max-width: 600px;
+            margin-bottom: 3rem;
+        }
+
+        .hero-subtitle strong {
+            color: var(--mint);
+            font-weight: 600;
+        }
+
+        .scroll-indicator {
+            position: absolute;
+            bottom: 3rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--stone);
+            font-size: 0.75rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            animation: bounce 2s infinite;
+        }
+
+        .scroll-indicator::after {
+            content: '↓';
+            font-size: 1.5rem;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(10px); }
+        }
+
+        /* ═══════════════════════════════════════
+           SECTION STYLES
+        ═══════════════════════════════════════ */
+        section {
+            padding: 6rem 4rem;
+            position: relative;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .section-number {
+            font-family: var(--font-display);
+            font-size: 6rem;
+            color: var(--hot-coral);
+            line-height: 1;
+            opacity: 0.3;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 4rem;
+            letter-spacing: 0.05em;
+            color: var(--white);
+        }
+
+        /* ═══════════════════════════════════════
+           COLOR PALETTE
+        ═══════════════════════════════════════ */
+        .colors-section {
+            background: var(--charcoal);
+        }
+
+        .color-showcase {
+            display: grid;
+            gap: 4rem;
+        }
+
+        .color-group-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            letter-spacing: 0.2em;
+            color: var(--stone);
+            margin-bottom: 1.5rem;
+        }
+
+        .color-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .color-block {
+            flex: 1;
+            min-width: 200px;
+            height: 180px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .color-block:hover {
+            transform: translateY(-8px) scale(1.02);
+        }
+
+        .color-block.coral {
+            background: var(--hot-coral);
+            box-shadow: 0 20px 60px rgba(255, 90, 95, 0.4);
+        }
+        .color-block.coral-bright { background: var(--coral-bright); }
+        .color-block.coral-deep { background: var(--coral-deep); }
+        .color-block.navy {
+            background: var(--navy-black);
+            border: 2px solid var(--navy-mid);
+        }
+        .color-block.navy-deep { background: var(--navy-deep); }
+        .color-block.navy-mid { background: var(--navy-mid); }
+        .color-block.mint {
+            background: var(--mint);
+            box-shadow: 0 20px 60px rgba(0, 217, 181, 0.3);
+        }
+        .color-block.yellow {
+            background: var(--yellow);
+            color: var(--ink);
+        }
+        .color-block.sky { background: var(--sky); }
+
+        .color-name {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .color-hex {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        /* Neutral swatches */
+        .neutral-strip {
+            display: flex;
+            border-radius: 12px;
+            overflow: hidden;
+            height: 80px;
+        }
+
+        .neutral-chip {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+        }
+
+        /* ═══════════════════════════════════════
+           TYPOGRAPHY
+        ═══════════════════════════════════════ */
+        .type-section {
+            background: linear-gradient(180deg, var(--navy-black) 0%, var(--charcoal) 100%);
+        }
+
+        .type-hero {
+            margin-bottom: 4rem;
+        }
+
+        .type-massive {
+            font-family: var(--font-display);
+            font-size: clamp(5rem, 20vw, 16rem);
+            line-height: 0.85;
+            letter-spacing: 0.02em;
+            background: linear-gradient(135deg, var(--hot-coral) 0%, var(--coral-bright) 50%, var(--yellow) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .type-specimen {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 3rem;
+        }
+
+        .type-card {
+            background: var(--navy-deep);
+            border-radius: 20px;
+            padding: 2.5rem;
+            border: 1px solid var(--navy-mid);
+        }
+
+        .type-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--hot-coral);
+            margin-bottom: 1rem;
+        }
+
+        .type-display {
+            font-family: var(--font-display);
+            font-size: 3.5rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .type-body {
+            font-family: var(--font-body);
+            font-size: 1.25rem;
+            font-weight: 400;
+            line-height: 1.6;
+            color: var(--stone);
+        }
+
+        .type-body strong {
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        .type-mono {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            color: var(--mint);
+            background: var(--navy-black);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--hot-coral);
+            margin-top: 1rem;
+        }
+
+        .font-meta {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--navy-mid);
+            font-size: 0.85rem;
+            color: var(--slate);
+        }
+
+        .font-meta strong {
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        /* ═══════════════════════════════════════
+           COMPONENTS
+        ═══════════════════════════════════════ */
+        .components-section {
+            background: var(--navy-black);
+        }
+
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+        }
+
+        .component-card {
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--navy-deep) 100%);
+            border-radius: 24px;
+            padding: 2.5rem;
+            border: 1px solid var(--navy-mid);
+        }
+
+        .component-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            letter-spacing: 0.15em;
+            color: var(--stone);
+            margin-bottom: 2rem;
+        }
+
+        /* Buttons */
+        .btn-showcase {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 100px;
+            font-family: var(--font-body);
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--hot-coral);
+            color: var(--white);
+            box-shadow: 0 4px 20px rgba(255, 90, 95, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 40px rgba(255, 90, 95, 0.6);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--white);
+            border: 2px solid var(--white);
+        }
+
+        .btn-secondary:hover {
+            background: var(--white);
+            color: var(--navy-black);
+        }
+
+        .btn-mint {
+            background: var(--mint);
+            color: var(--navy-black);
+        }
+
+        .btn-mint:hover {
+            box-shadow: 0 8px 40px rgba(0, 217, 181, 0.5);
+            transform: translateY(-3px);
+        }
+
+        /* Stats */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-block {
+            background: var(--navy-black);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border-left: 4px solid var(--hot-coral);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--stone);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            color: var(--white);
+            letter-spacing: 0.02em;
+        }
+
+        .stat-change {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        .stat-change.positive { color: var(--mint); }
+        .stat-change.negative { color: var(--hot-coral); }
+
+        /* Category Pills */
+        .pill-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .pill {
+            padding: 0.6rem 1.2rem;
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pill-groceries { background: rgba(0, 217, 181, 0.2); color: var(--mint); }
+        .pill-transport { background: rgba(79, 195, 247, 0.2); color: var(--sky); }
+        .pill-eating { background: rgba(255, 90, 95, 0.2); color: var(--coral-bright); }
+        .pill-bills { background: rgba(255, 217, 61, 0.2); color: var(--yellow); }
+        .pill-shopping { background: rgba(167, 139, 250, 0.2); color: #A78BFA; }
+
+        /* Transactions */
+        .transaction-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .transaction {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: var(--navy-black);
+            border-radius: 12px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .transaction:hover {
+            border-color: var(--hot-coral);
+            transform: translateX(8px);
+        }
+
+        .transaction-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--charcoal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-right: 1rem;
+        }
+
+        .transaction-info {
+            flex: 1;
+        }
+
+        .transaction-merchant {
+            font-weight: 600;
+            color: var(--white);
+            font-size: 1rem;
+        }
+
+        .transaction-category {
+            font-size: 0.8rem;
+            color: var(--slate);
+        }
+
+        .transaction-amount {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .transaction-amount.expense { color: var(--hot-coral); }
+        .transaction-amount.income { color: var(--mint); }
+
+        /* Budget Bars */
+        .budget-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .budget-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .budget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .budget-name {
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .budget-amounts {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--stone);
+        }
+
+        .budget-bar {
+            height: 12px;
+            background: var(--navy-black);
+            border-radius: 100px;
+            overflow: hidden;
+        }
+
+        .budget-fill {
+            height: 100%;
+            border-radius: 100px;
+            transition: width 0.5s ease;
+        }
+
+        .budget-fill.safe {
+            background: linear-gradient(90deg, var(--mint), #00FFD4);
+        }
+        .budget-fill.warning {
+            background: linear-gradient(90deg, var(--yellow), #FFE566);
+        }
+        .budget-fill.danger {
+            background: linear-gradient(90deg, var(--coral-deep), var(--hot-coral));
+        }
+
+        /* ═══════════════════════════════════════
+           DASHBOARD PREVIEW
+        ═══════════════════════════════════════ */
+        .dashboard-section {
+            background: linear-gradient(135deg, var(--charcoal) 0%, var(--navy-deep) 100%);
+        }
+
+        .dashboard-preview {
+            background: var(--navy-black);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+        }
+
+        .dashboard-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: var(--charcoal);
+            border-bottom: 1px solid var(--navy-mid);
+        }
+
+        .dashboard-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .dashboard-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--hot-coral);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+        }
+
+        .dashboard-logo-text {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            letter-spacing: 0.1em;
+        }
+
+        .dashboard-nav {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .dashboard-nav a {
+            color: var(--stone);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .dashboard-nav a:hover,
+        .dashboard-nav a.active {
+            color: var(--hot-coral);
+        }
+
+        .dashboard-body {
+            padding: 2rem;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-greeting {
+            font-family: var(--font-display);
+            font-size: 3rem;
+            letter-spacing: 0.02em;
+        }
+
+        .dashboard-greeting span {
+            color: var(--hot-coral);
+        }
+
+        .dashboard-period {
+            font-size: 0.9rem;
+            color: var(--stone);
+        }
+
+        .dashboard-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-stat {
+            background: var(--charcoal);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--navy-mid);
+        }
+
+        .dashboard-stat .stat-label {
+            margin-bottom: 0.5rem;
+        }
+
+        .dashboard-stat .stat-value {
+            font-size: 2rem;
+        }
+
+        /* ═══════════════════════════════════════
+           FOOTER
+        ═══════════════════════════════════════ */
+        .footer {
+            text-align: center;
+            padding: 4rem;
+            background: var(--ink);
+            border-top: 1px solid var(--charcoal);
+        }
+
+        .footer-logo {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+
+        .footer-logo span {
+            color: var(--hot-coral);
+        }
+
+        .footer-tagline {
+            color: var(--slate);
+            font-size: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-meta {
+            font-size: 0.8rem;
+            color: var(--slate);
+        }
+
+        /* ═══════════════════════════════════════
+           RESPONSIVE
+        ═══════════════════════════════════════ */
+        @media (max-width: 768px) {
+            section {
+                padding: 4rem 2rem;
+            }
+
+            .hero {
+                padding: 2rem;
+            }
+
+            .section-number {
+                font-size: 4rem;
+            }
+
+            .section-title {
+                font-size: 2.5rem;
+            }
+
+            .component-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .dashboard-nav {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ═══════════════════════════════════════
+         HERO
+    ═══════════════════════════════════════ -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="brand-mark">
+                <div class="brand-icon">M</div>
+                <span class="brand-text">MONZO ANALYSIS</span>
+            </div>
+            <h1 class="hero-title">
+                <span class="line1">YOUR MONEY.</span><br>
+                <span class="line2">YOUR STORY.</span>
+            </h1>
+            <p class="hero-subtitle">
+                A bold visual identity that turns financial data into
+                <strong>insights you'll actually want to see</strong>.
+            </p>
+        </div>
+        <div class="scroll-indicator">SCROLL</div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         COLORS
+    ═══════════════════════════════════════ -->
+    <section class="colors-section">
+        <div class="section-header">
+            <span class="section-number">01</span>
+            <h2 class="section-title">COLOUR PALETTE</h2>
+        </div>
+
+        <div class="color-showcase">
+            <div>
+                <h3 class="color-group-title">PRIMARY — HOT CORAL</h3>
+                <div class="color-row">
+                    <div class="color-block coral">
+                        <div class="color-name">HOT CORAL</div>
+                        <div class="color-hex">#FF5A5F</div>
+                    </div>
+                    <div class="color-block coral-bright">
+                        <div class="color-name">BRIGHT</div>
+                        <div class="color-hex">#FF7C7E</div>
+                    </div>
+                    <div class="color-block coral-deep">
+                        <div class="color-name">DEEP</div>
+                        <div class="color-hex">#E54D51</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="color-group-title">SECONDARY — NAVY</h3>
+                <div class="color-row">
+                    <div class="color-block navy">
+                        <div class="color-name">NAVY BLACK</div>
+                        <div class="color-hex">#14233C</div>
+                    </div>
+                    <div class="color-block navy-deep">
+                        <div class="color-name">DEEP</div>
+                        <div class="color-hex">#1B3A5C</div>
+                    </div>
+                    <div class="color-block navy-mid">
+                        <div class="color-name">MID</div>
+                        <div class="color-hex">#2B5278</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="color-group-title">ACCENTS — ELECTRIC</h3>
+                <div class="color-row">
+                    <div class="color-block mint">
+                        <div class="color-name" style="color: var(--navy-black);">MINT</div>
+                        <div class="color-hex" style="color: var(--navy-black);">#00D9B5</div>
+                    </div>
+                    <div class="color-block yellow">
+                        <div class="color-name">YELLOW</div>
+                        <div class="color-hex">#FFD93D</div>
+                    </div>
+                    <div class="color-block sky">
+                        <div class="color-name" style="color: var(--navy-black);">SKY</div>
+                        <div class="color-hex" style="color: var(--navy-black);">#4FC3F7</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="color-group-title">NEUTRALS</h3>
+                <div class="neutral-strip">
+                    <div class="neutral-chip" style="background: var(--ink); color: var(--white);">INK</div>
+                    <div class="neutral-chip" style="background: var(--charcoal); color: var(--white);">CHARCOAL</div>
+                    <div class="neutral-chip" style="background: var(--slate); color: var(--white);">SLATE</div>
+                    <div class="neutral-chip" style="background: var(--stone); color: var(--ink);">STONE</div>
+                    <div class="neutral-chip" style="background: var(--silver); color: var(--ink);">SILVER</div>
+                    <div class="neutral-chip" style="background: var(--snow); color: var(--ink);">SNOW</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         TYPOGRAPHY
+    ═══════════════════════════════════════ -->
+    <section class="type-section">
+        <div class="section-header">
+            <span class="section-number">02</span>
+            <h2 class="section-title">TYPOGRAPHY</h2>
+        </div>
+
+        <div class="type-hero">
+            <div class="type-massive">£2,847</div>
+        </div>
+
+        <div class="type-specimen">
+            <div class="type-card">
+                <div class="type-label">Display — Bebas Neue</div>
+                <div class="type-display">SPENT TODAY</div>
+                <p class="type-body">
+                    Bold, condensed headlines that <strong>demand attention</strong>.
+                    Perfect for big numbers and section headers.
+                </p>
+                <div class="font-meta">
+                    <strong>Use:</strong> Headlines, stats, navigation, emphasis
+                </div>
+            </div>
+
+            <div class="type-card">
+                <div class="type-label">Body — Outfit</div>
+                <div class="type-body" style="font-size: 1.5rem; color: var(--white); margin-bottom: 1rem;">
+                    The perfect balance of friendly and professional.
+                </div>
+                <p class="type-body">
+                    A geometric sans-serif with excellent readability at all sizes.
+                    Clean, modern, and approachable for everyday interface text.
+                </p>
+                <div class="font-meta">
+                    <strong>Use:</strong> Body text, labels, descriptions, UI elements
+                </div>
+            </div>
+
+            <div class="type-card">
+                <div class="type-label">Mono — Space Mono</div>
+                <div class="type-mono">
+                    groceries: £342.50<br>
+                    eating_out: £187.20<br>
+                    transport:  £94.00
+                </div>
+                <div class="font-meta">
+                    <strong>Use:</strong> Financial data, code, technical values
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         COMPONENTS
+    ═══════════════════════════════════════ -->
+    <section class="components-section">
+        <div class="section-header">
+            <span class="section-number">03</span>
+            <h2 class="section-title">COMPONENTS</h2>
+        </div>
+
+        <div class="component-grid">
+            <!-- Buttons -->
+            <div class="component-card">
+                <h3 class="component-title">BUTTONS</h3>
+                <div class="btn-showcase">
+                    <button class="btn btn-primary">SYNC NOW</button>
+                    <button class="btn btn-secondary">VIEW ALL</button>
+                    <button class="btn btn-mint">SUCCESS</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="component-card">
+                <h3 class="component-title">STAT BLOCKS</h3>
+                <div class="stat-grid">
+                    <div class="stat-block">
+                        <div class="stat-label">TOTAL SPENT</div>
+                        <div class="stat-value">£2,847</div>
+                        <div class="stat-change negative">↓ 12%</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-label">REMAINING</div>
+                        <div class="stat-value">£1,153</div>
+                        <div class="stat-change positive">ON TRACK</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categories -->
+            <div class="component-card">
+                <h3 class="component-title">CATEGORY PILLS</h3>
+                <div class="pill-grid">
+                    <span class="pill pill-groceries">🛒 Groceries</span>
+                    <span class="pill pill-transport">🚗 Transport</span>
+                    <span class="pill pill-eating">🍽️ Eating Out</span>
+                    <span class="pill pill-bills">📄 Bills</span>
+                    <span class="pill pill-shopping">🛍️ Shopping</span>
+                </div>
+            </div>
+
+            <!-- Transactions -->
+            <div class="component-card">
+                <h3 class="component-title">TRANSACTIONS</h3>
+                <div class="transaction-list">
+                    <div class="transaction">
+                        <div class="transaction-icon">🛒</div>
+                        <div class="transaction-info">
+                            <div class="transaction-merchant">Sainsbury's</div>
+                            <div class="transaction-category">Groceries · Today</div>
+                        </div>
+                        <div class="transaction-amount expense">-£47.82</div>
+                    </div>
+                    <div class="transaction">
+                        <div class="transaction-icon">☕</div>
+                        <div class="transaction-info">
+                            <div class="transaction-merchant">Pret A Manger</div>
+                            <div class="transaction-category">Eating Out · Today</div>
+                        </div>
+                        <div class="transaction-amount expense">-£4.50</div>
+                    </div>
+                    <div class="transaction">
+                        <div class="transaction-icon">💰</div>
+                        <div class="transaction-info">
+                            <div class="transaction-merchant">Salary</div>
+                            <div class="transaction-category">Income · 1 Jan</div>
+                        </div>
+                        <div class="transaction-amount income">+£3,450</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Progress -->
+            <div class="component-card" style="grid-column: span 2;">
+                <h3 class="component-title">BUDGET PROGRESS</h3>
+                <div class="budget-list">
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span class="budget-name">🛒 Groceries</span>
+                            <span class="budget-amounts">£285 / £400</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-fill safe" style="width: 71%;"></div>
+                        </div>
+                    </div>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span class="budget-name">🍽️ Eating Out</span>
+                            <span class="budget-amounts">£165 / £200</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-fill warning" style="width: 82%;"></div>
+                        </div>
+                    </div>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span class="budget-name">🛍️ Shopping</span>
+                            <span class="budget-amounts">£312 / £250</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-fill danger" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         DASHBOARD PREVIEW
+    ═══════════════════════════════════════ -->
+    <section class="dashboard-section">
+        <div class="section-header">
+            <span class="section-number">04</span>
+            <h2 class="section-title">DASHBOARD</h2>
+        </div>
+
+        <div class="dashboard-preview">
+            <div class="dashboard-topbar">
+                <div class="dashboard-logo">
+                    <div class="dashboard-logo-icon">M</div>
+                    <span class="dashboard-logo-text">MONZO ANALYSIS</span>
+                </div>
+                <nav class="dashboard-nav">
+                    <a href="#" class="active">Dashboard</a>
+                    <a href="#">Transactions</a>
+                    <a href="#">Budgets</a>
+                    <a href="#">Rules</a>
+                    <a href="#">Settings</a>
+                </nav>
+            </div>
+            <div class="dashboard-body">
+                <div class="dashboard-header">
+                    <div>
+                        <h2 class="dashboard-greeting">JANUARY <span>2026</span></h2>
+                        <p class="dashboard-period">Budget resets in 12 days</p>
+                    </div>
+                    <button class="btn btn-primary">SYNC NOW</button>
+                </div>
+                <div class="dashboard-stats-row">
+                    <div class="dashboard-stat">
+                        <div class="stat-label">SPENT</div>
+                        <div class="stat-value">£2,847</div>
+                        <div class="stat-change negative">↓ 12% VS DEC</div>
+                    </div>
+                    <div class="dashboard-stat">
+                        <div class="stat-label">REMAINING</div>
+                        <div class="stat-value">£1,153</div>
+                        <div class="stat-change positive">ON TRACK</div>
+                    </div>
+                    <div class="dashboard-stat">
+                        <div class="stat-label">SAVINGS</div>
+                        <div class="stat-value">£450</div>
+                        <div class="stat-change positive">↑ 15%</div>
+                    </div>
+                    <div class="dashboard-stat">
+                        <div class="stat-label">RATE</div>
+                        <div class="stat-value">24%</div>
+                        <div class="stat-change positive">TARGET: 20%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         FOOTER
+    ═══════════════════════════════════════ -->
+    <footer class="footer">
+        <div class="footer-logo">MONZO<span>ANALYSIS</span></div>
+        <p class="footer-tagline">Bold design for bold financial insights</p>
+        <p class="footer-meta">Visual Identity Mockup · January 2026</p>
+    </footer>
+</body>
+</html>
