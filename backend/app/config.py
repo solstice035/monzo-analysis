@@ -31,3 +31,19 @@ class Settings(BaseSettings):
     slack_client_id: str | None = None
     slack_client_secret: str | None = None
     slack_signing_secret: str | None = None
+
+
+# Cached settings instance
+_settings: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """Get the application settings (cached singleton).
+
+    Returns:
+        Settings instance
+    """
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
