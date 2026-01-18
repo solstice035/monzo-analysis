@@ -30,6 +30,48 @@ See TRD for architecture, data model, API design, and implementation approach.
 | Deployment | Docker on Unraid | Always-on, no ongoing cost, portable to DigitalOcean |
 | Dashboard | Full CRUD UI | Configure rules, budgets, trigger syncs from browser |
 | Budget reset | Configurable day (1-28) | Aligns with payday, not calendar month |
+| Visual identity | Bold dark mode | Monzo hot coral on navy; premium analytics feel |
+| Display font | Bebas Neue | Striking condensed headlines for big numbers |
+| Body font | Outfit | Modern geometric sans, friendly yet professional |
+| Mono font | Space Mono | Financial data and technical values |
+
+---
+
+## Visual Identity
+
+See mockup: [docs/visual-identity-mockup.html](docs/visual-identity-mockup.html)
+
+**Design Direction:** Bold Financial — premium dark mode aesthetic that makes data feel powerful.
+
+### Colour Palette
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--hot-coral` | #FF5A5F | Primary brand, CTAs, emphasis |
+| `--coral-bright` | #FF7C7E | Hover states, highlights |
+| `--coral-deep` | #E54D51 | Pressed states, danger |
+| `--navy-black` | #14233C | Background, primary surface |
+| `--navy-deep` | #1B3A5C | Cards, elevated surfaces |
+| `--navy-mid` | #2B5278 | Borders, subtle dividers |
+| `--mint` | #00D9B5 | Success, positive changes, income |
+| `--yellow` | #FFD93D | Warnings, budget alerts |
+| `--sky` | #4FC3F7 | Info, transport category |
+
+### Typography
+
+| Role | Font | Weight | Usage |
+|------|------|--------|-------|
+| Display | Bebas Neue | 400 | Headlines, stats, big numbers |
+| Body | Outfit | 300-800 | UI text, labels, descriptions |
+| Mono | Space Mono | 400, 700 | Financial data, amounts, code |
+
+### Component Patterns
+
+- **Stat blocks:** Coral left border, navy background, display font for values
+- **Budget bars:** Gradient fills (mint→safe, yellow→warning, coral→danger)
+- **Transactions:** Hover reveals coral border, slides right 8px
+- **Buttons:** Pill-shaped, coral glow shadow on hover
+- **Category pills:** Translucent colour backgrounds matching category
 
 ---
 
@@ -226,6 +268,7 @@ curl -X POST -H 'Content-Type: application/json' \
 | Project scaffold | ✅ Complete | 2026-01-17 |
 | PRD deep dive | ✅ Complete | 2026-01-18 |
 | TRD | ✅ Complete | 2026-01-18 |
+| Visual identity | ✅ Complete | 2026-01-18 |
 | MVP implementation | ⏳ Pending | - |
 
 ---
