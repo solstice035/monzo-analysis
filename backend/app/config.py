@@ -26,5 +26,8 @@ class Settings(BaseSettings):
     # Sync configuration
     sync_interval_hours: int = 24
 
-    # Slack (optional)
+    # Slack (optional - webhook only needed for notifications)
     slack_webhook_url: str | None = None
+    slack_client_id: str | None = None
+    slack_client_secret: str | None = None
+    slack_signing_secret: str | None = None

@@ -186,6 +186,9 @@ Configured in `.env` (not committed):
 | `MONZO_REDIRECT_URI` | Callback URL for OAuth flow |
 | `MONZO_OWNER_ID` | Your Monzo account/user ID |
 | `SLACK_WEBHOOK_URL` | Incoming webhook for notifications (optional) |
+| `SLACK_CLIENT_ID` | App client ID (for future OAuth features) |
+| `SLACK_CLIENT_SECRET` | App client secret |
+| `SLACK_SIGNING_SECRET` | Request signature verification |
 
 ### Slack Webhook Setup
 
