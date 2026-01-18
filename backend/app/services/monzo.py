@@ -99,3 +99,96 @@ def calculate_token_expiry(expires_in: int) -> datetime:
         Datetime when token expires
     """
     return datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+
+async def fetch_accounts(access_token: str) -> list[dict[str, Any]]:
+    """Fetch all accounts for the authenticated user.
+
+    Args:
+        access_token: Valid Monzo access token
+
+    Returns:
+        List of account objects
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{MONZO_API_URL}/accounts",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        return response.json()["accounts"]
+
+
+async def fetch_transactions(
+    access_token: str,
+    account_id: str,
+    since: datetime | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Fetch transactions for an account.
+
+    Args:
+        access_token: Valid Monzo access token
+        account_id: Monzo account ID
+        since: Only fetch transactions after this datetime
+        limit: Maximum number of transactions (default 100)
+
+    Returns:
+        List of transaction objects
+    """
+    params: dict[str, Any] = {
+        "account_id": account_id,
+        "limit": limit,
+        "expand[]": "merchant",
+    }
+    if since:
+        params["since"] = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{MONZO_API_URL}/transactions",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
+        )
+        response.raise_for_status()
+        return response.json()["transactions"]
+
+
+async def fetch_pots(access_token: str, account_id: str) -> list[dict[str, Any]]:
+    """Fetch all pots for an account.
+
+    Args:
+        access_token: Valid Monzo access token
+        account_id: Monzo account ID
+
+    Returns:
+        List of pot objects
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{MONZO_API_URL}/pots",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"current_account_id": account_id},
+        )
+        response.raise_for_status()
+        return response.json()["pots"]
+
+
+async def fetch_balance(access_token: str, account_id: str) -> dict[str, Any]:
+    """Fetch current balance for an account.
+
+    Args:
+        access_token: Valid Monzo access token
+        account_id: Monzo account ID
+
+    Returns:
+        Balance information
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{MONZO_API_URL}/balance",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"account_id": account_id},
+        )
+        response.raise_for_status()
+        return response.json()
