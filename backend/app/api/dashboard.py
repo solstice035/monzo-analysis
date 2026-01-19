@@ -47,8 +47,10 @@ class TrendData(BaseModel):
 
 
 @router.get("/summary", response_model=DashboardSummary)
-async def get_dashboard_summary() -> dict[str, Any]:
-    """Get dashboard summary data."""
+async def get_dashboard_summary(
+    account_id: str = Query(..., description="Account ID to filter data"),
+) -> dict[str, Any]:
+    """Get dashboard summary data for a specific account."""
     async with get_session() as session:
         # Get today and start of month
         today = date.today()
@@ -57,9 +59,11 @@ async def get_dashboard_summary() -> dict[str, Any]:
         )
         start_of_month = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
 
-        # Get total transaction count
+        # Get total transaction count for this account
         count_result = await session.execute(
-            select(func.count(Transaction.id))
+            select(func.count(Transaction.id)).where(
+                Transaction.account_id == account_id
+            )
         )
         transaction_count = count_result.scalar() or 0
 
@@ -67,6 +71,7 @@ async def get_dashboard_summary() -> dict[str, Any]:
         today_result = await session.execute(
             select(func.sum(Transaction.amount)).where(
                 and_(
+                    Transaction.account_id == account_id,
                     Transaction.created_at >= start_of_today,
                     Transaction.amount < 0,
                 )
@@ -78,6 +83,7 @@ async def get_dashboard_summary() -> dict[str, Any]:
         month_result = await session.execute(
             select(func.sum(Transaction.amount)).where(
                 and_(
+                    Transaction.account_id == account_id,
                     Transaction.created_at >= start_of_month,
                     Transaction.amount < 0,
                 )
@@ -85,7 +91,7 @@ async def get_dashboard_summary() -> dict[str, Any]:
         )
         spend_this_month = abs(month_result.scalar() or 0)
 
-        # Get top categories
+        # Get top categories for this account
         cat_query = (
             select(
                 func.coalesce(
@@ -93,7 +99,12 @@ async def get_dashboard_summary() -> dict[str, Any]:
                 ).label("category"),
                 func.sum(Transaction.amount).label("total"),
             )
-            .where(Transaction.amount < 0)
+            .where(
+                and_(
+                    Transaction.account_id == account_id,
+                    Transaction.amount < 0,
+                )
+            )
             .group_by(
                 func.coalesce(
                     Transaction.custom_category, Transaction.monzo_category
@@ -108,9 +119,11 @@ async def get_dashboard_summary() -> dict[str, Any]:
             for row in cat_result.all()
         ]
 
-        # Balance is sum of all transactions (could also fetch from Monzo API)
+        # Balance is sum of all transactions for this account
         balance_result = await session.execute(
-            select(func.sum(Transaction.amount))
+            select(func.sum(Transaction.amount)).where(
+                Transaction.account_id == account_id
+            )
         )
         balance = balance_result.scalar() or 0
 
@@ -125,9 +138,10 @@ async def get_dashboard_summary() -> dict[str, Any]:
 
 @router.get("/trends", response_model=TrendData)
 async def get_spending_trends(
+    account_id: str = Query(..., description="Account ID to filter data"),
     days: int = Query(30, ge=7, le=90),
 ) -> dict[str, Any]:
-    """Get daily spending trend data."""
+    """Get daily spending trend data for a specific account."""
     async with get_session() as session:
         today = date.today()
         start_date = today - timedelta(days=days - 1)
@@ -135,7 +149,7 @@ async def get_spending_trends(
             tzinfo=timezone.utc
         )
 
-        # Get daily spend aggregation
+        # Get daily spend aggregation for this account
         daily_query = (
             select(
                 func.date(Transaction.created_at).label("day"),
@@ -143,6 +157,7 @@ async def get_spending_trends(
             )
             .where(
                 and_(
+                    Transaction.account_id == account_id,
                     Transaction.created_at >= start_datetime,
                     Transaction.amount < 0,
                 )
@@ -198,12 +213,13 @@ class RecurringResponse(BaseModel):
 
 @router.get("/recurring", response_model=RecurringResponse)
 async def get_recurring_transactions(
+    account_id: str = Query(..., description="Account ID to filter data"),
     min_occurrences: int = Query(3, ge=2, le=10),
 ) -> dict[str, Any]:
-    """Get detected recurring/subscription transactions."""
+    """Get detected recurring/subscription transactions for a specific account."""
     async with get_session() as session:
         recurring = await detect_recurring_transactions(
-            session, min_occurrences=min_occurrences
+            session, account_id=account_id, min_occurrences=min_occurrences
         )
 
         items = []

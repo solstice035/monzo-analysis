@@ -2,12 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
 
 from app.database import get_session
-from app.models import CategoryRule
 from app.services.rules import RulesService
 
 router = APIRouter(prefix="/rules", tags=["rules"])
@@ -17,6 +15,7 @@ class CategoryRuleResponse(BaseModel):
     """Category rule response model."""
 
     id: str
+    account_id: str
     name: str
     conditions: dict[str, Any]
     target_category: str
@@ -27,6 +26,7 @@ class CategoryRuleResponse(BaseModel):
 class RuleCreate(BaseModel):
     """Request model for creating a rule."""
 
+    account_id: str
     name: str
     conditions: dict[str, Any]
     target_category: str
@@ -45,16 +45,17 @@ class RuleUpdate(BaseModel):
 
 
 @router.get("", response_model=list[CategoryRuleResponse])
-async def get_rules() -> list[dict[str, Any]]:
-    """Get all category rules."""
+async def get_rules(
+    account_id: str = Query(..., description="Account ID to filter rules"),
+) -> list[dict[str, Any]]:
+    """Get all category rules for a specific account."""
     async with get_session() as session:
-        result = await session.execute(
-            select(CategoryRule).order_by(CategoryRule.priority.desc())
-        )
-        rules = result.scalars().all()
+        service = RulesService(session)
+        rules = await service.get_all_rules(account_id)
         return [
             {
                 "id": str(r.id),
+                "account_id": str(r.account_id),
                 "name": r.name,
                 "conditions": r.conditions,
                 "target_category": r.target_category,
@@ -67,12 +68,13 @@ async def get_rules() -> list[dict[str, Any]]:
 
 @router.post("", response_model=CategoryRuleResponse, status_code=201)
 async def create_rule(data: RuleCreate) -> dict[str, Any]:
-    """Create a new category rule."""
+    """Create a new category rule for a specific account."""
     async with get_session() as session:
         service = RulesService(session)
         # Extract condition fields from the conditions dict
         conditions = data.conditions
         rule = await service.create_rule(
+            account_id=data.account_id,
             name=data.name,
             target_category=data.target_category,
             priority=data.priority,
@@ -84,6 +86,7 @@ async def create_rule(data: RuleCreate) -> dict[str, Any]:
         )
         return {
             "id": str(rule.id),
+            "account_id": str(rule.account_id),
             "name": rule.name,
             "conditions": rule.conditions,
             "target_category": rule.target_category,
@@ -113,6 +116,7 @@ async def update_rule(rule_id: str, data: RuleUpdate) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="Rule not found")
         return {
             "id": str(rule.id),
+            "account_id": str(rule.account_id),
             "name": rule.name,
             "conditions": rule.conditions,
             "target_category": rule.target_category,

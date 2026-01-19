@@ -29,6 +29,7 @@ class RecurringTransaction:
 
 async def detect_recurring_transactions(
     session: AsyncSession,
+    account_id: str,
     min_occurrences: int = 3,
     max_interval_variance: float = 0.3,
 ) -> list[RecurringTransaction]:
@@ -36,13 +37,14 @@ async def detect_recurring_transactions(
 
     Args:
         session: Database session
+        account_id: Account ID to filter transactions
         min_occurrences: Minimum number of transactions to consider as recurring
         max_interval_variance: Maximum allowed coefficient of variation for intervals
 
     Returns:
         List of detected recurring transaction patterns
     """
-    # Get transactions grouped by merchant with amounts and dates
+    # Get transactions grouped by merchant with amounts and dates for this account
     result = await session.execute(
         select(
             Transaction.merchant_name,
@@ -52,6 +54,7 @@ async def detect_recurring_transactions(
             Transaction.amount,
             Transaction.created_at,
         )
+        .where(Transaction.account_id == account_id)
         .where(Transaction.merchant_name.isnot(None))
         .where(Transaction.amount < 0)  # Only spending
         .order_by(Transaction.merchant_name, Transaction.created_at)

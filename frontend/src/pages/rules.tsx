@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { useRules, useCreateRule, useUpdateRule, useDeleteRule } from "@/hooks/useApi";
+import { useAccount } from "@/contexts/AccountContext";
 import type { CategoryRule } from "@/lib/api";
 
 const categories = [
@@ -82,6 +83,7 @@ function formatCondition(conditions: Record<string, unknown>): string {
 }
 
 export function Rules() {
+  const { selectedAccount } = useAccount();
   const { data: rules, isLoading, error } = useRules();
   const createRule = useCreateRule();
   const updateRule = useUpdateRule();
@@ -155,6 +157,8 @@ export function Rules() {
   };
 
   const handleSubmit = async () => {
+    if (!selectedAccount) return;
+
     // Build conditions object based on field and operator
     const conditions: Record<string, unknown> = {};
 
@@ -184,7 +188,10 @@ export function Rules() {
         data: ruleData,
       });
     } else {
-      await createRule.mutateAsync(ruleData);
+      await createRule.mutateAsync({
+        ...ruleData,
+        account_id: selectedAccount.id,
+      });
     }
 
     setIsDialogOpen(false);

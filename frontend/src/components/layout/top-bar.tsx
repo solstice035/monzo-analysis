@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { AccountSelector } from "@/components/account-selector";
 import { RefreshCw } from "lucide-react";
 
 interface TopBarProps {
@@ -27,12 +28,15 @@ export function TopBar({
         </h1>
         {subtitle && <p className="text-stone mt-1">{subtitle}</p>}
       </div>
-      {showSync && (
-        <Button onClick={onSync} disabled={isSyncing}>
-          <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-          {isSyncing ? "SYNCING..." : "SYNC NOW"}
-        </Button>
-      )}
+      <div className="flex items-center gap-4">
+        <AccountSelector />
+        {showSync && (
+          <Button onClick={onSync} disabled={isSyncing}>
+            <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+            {isSyncing ? "SYNCING..." : "SYNC NOW"}
+          </Button>
+        )}
+      </div>
     </header>
   );
 }

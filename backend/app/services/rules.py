@@ -109,21 +109,42 @@ class RulesService:
         """
         self._session = session
 
-    async def get_enabled_rules(self) -> list[CategoryRule]:
-        """Get all enabled rules ordered by priority.
+    async def get_enabled_rules(self, account_id: str) -> list[CategoryRule]:
+        """Get all enabled rules for an account ordered by priority.
+
+        Args:
+            account_id: Account ID to filter rules
 
         Returns:
-            List of enabled category rules
+            List of enabled category rules for the account
         """
         result = await self._session.execute(
             select(CategoryRule)
+            .where(CategoryRule.account_id == account_id)
             .where(CategoryRule.enabled.is_(True))
+            .order_by(CategoryRule.priority.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_all_rules(self, account_id: str) -> list[CategoryRule]:
+        """Get all rules for an account ordered by priority.
+
+        Args:
+            account_id: Account ID to filter rules
+
+        Returns:
+            List of all category rules for the account
+        """
+        result = await self._session.execute(
+            select(CategoryRule)
+            .where(CategoryRule.account_id == account_id)
             .order_by(CategoryRule.priority.desc())
         )
         return list(result.scalars().all())
 
     async def create_rule(
         self,
+        account_id: str,
         name: str,
         target_category: str,
         priority: int = 50,
@@ -133,9 +154,10 @@ class RulesService:
         monzo_category: str | None = None,
         enabled: bool = True,
     ) -> CategoryRule:
-        """Create a new category rule.
+        """Create a new category rule for an account.
 
         Args:
+            account_id: Account ID to associate the rule with
             name: Rule name
             target_category: Custom category to assign
             priority: Rule priority (higher = checked first)
@@ -160,6 +182,7 @@ class RulesService:
 
         rule = CategoryRule(
             id=uuid4(),
+            account_id=account_id,
             name=name,
             conditions=conditions,
             target_category=target_category,

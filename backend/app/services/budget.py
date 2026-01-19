@@ -1,12 +1,13 @@
 """Budget tracking service for spending analysis."""
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from calendar import monthrange
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Budget, Transaction
@@ -89,25 +90,32 @@ class BudgetService:
         """
         self._session = session
 
-    async def get_all_budgets(self) -> list[Budget]:
-        """Get all budgets.
+    async def get_all_budgets(self, account_id: str) -> list[Budget]:
+        """Get all budgets for a specific account.
+
+        Args:
+            account_id: Account ID to filter budgets
 
         Returns:
-            List of budgets
+            List of budgets for the account
         """
-        result = await self._session.execute(select(Budget))
+        result = await self._session.execute(
+            select(Budget).where(Budget.account_id == account_id)
+        )
         return list(result.scalars().all())
 
     async def create_budget(
         self,
+        account_id: str,
         category: str,
         amount: int,
         period: str = "monthly",
         start_day: int = 1,
     ) -> Budget:
-        """Create a new budget.
+        """Create a new budget for an account.
 
         Args:
+            account_id: Account ID to associate the budget with
             category: Category name to track
             amount: Budget amount in pence
             period: Period type ("monthly" or "weekly")
@@ -118,6 +126,7 @@ class BudgetService:
         """
         budget = Budget(
             id=uuid4(),
+            account_id=account_id,
             category=category,
             amount=amount,
             period=period,
@@ -205,6 +214,7 @@ class BudgetService:
         result = await self._session.execute(
             select(Transaction).where(
                 and_(
+                    Transaction.account_id == budget.account_id,
                     Transaction.custom_category == budget.category,
                     Transaction.created_at >= period_start,
                     Transaction.created_at <= period_end,
@@ -262,19 +272,102 @@ class BudgetService:
 
     async def get_all_budget_statuses(
         self,
+        account_id: str,
         reference_date: date,
     ) -> list[BudgetStatus]:
-        """Get status for all budgets.
+        """Get status for all budgets for a specific account.
+
+        Optimized to use a single database query instead of N+1 queries.
 
         Args:
+            account_id: Account ID to filter budgets
             reference_date: Reference date for period calculation
 
         Returns:
             List of BudgetStatus for all budgets
         """
-        budgets = await self.get_all_budgets()
+        budgets = await self.get_all_budgets(account_id)
+
+        if not budgets:
+            return []
+
+        # Build period ranges and collect categories for each budget
+        budget_periods: dict[Any, tuple[date, date]] = {}
+        categories: set[str] = set()
+
+        for budget in budgets:
+            period_start, period_end = get_current_period(
+                reference_date,
+                budget.start_day,
+                budget.period,
+            )
+            budget_periods[budget.id] = (period_start, period_end)
+            categories.add(budget.category)
+
+        # Find the earliest start and latest end to bound the query
+        all_starts = [p[0] for p in budget_periods.values()]
+        all_ends = [p[1] for p in budget_periods.values()]
+        min_start = min(all_starts)
+        max_end = max(all_ends)
+
+        # Single query: get all transactions for this account in relevant categories
+        result = await self._session.execute(
+            select(
+                Transaction.custom_category,
+                Transaction.amount,
+                Transaction.created_at,
+            ).where(
+                and_(
+                    Transaction.account_id == account_id,
+                    Transaction.custom_category.in_(categories),
+                    Transaction.created_at >= min_start,
+                    Transaction.created_at <= max_end,
+                    Transaction.amount < 0,  # Only spending
+                )
+            )
+        )
+        transactions = result.all()
+
+        # Group spending by category and check if within each budget's specific period
+        # Since budgets can have different reset days, we need to check per-budget
+        category_spend_by_budget: dict[Any, int] = defaultdict(int)
+
+        for budget in budgets:
+            period_start, period_end = budget_periods[budget.id]
+            for tx in transactions:
+                if (
+                    tx.custom_category == budget.category
+                    and period_start <= tx.created_at.date() <= period_end
+                ):
+                    category_spend_by_budget[budget.id] += abs(tx.amount)
+
+        # Build status objects
         statuses = []
         for budget in budgets:
-            status = await self.get_budget_status(budget, reference_date)
-            statuses.append(status)
+            period_start, period_end = budget_periods[budget.id]
+            spent = category_spend_by_budget.get(budget.id, 0)
+            remaining = budget.amount - spent
+            percentage = (spent / budget.amount) * 100 if budget.amount > 0 else 0
+
+            if percentage >= 100:
+                status = "over"
+            elif percentage >= 80:
+                status = "warning"
+            else:
+                status = "under"
+
+            statuses.append(
+                BudgetStatus(
+                    budget_id=budget.id,
+                    category=budget.category,
+                    amount=budget.amount,
+                    spent=spent,
+                    remaining=remaining,
+                    percentage=round(percentage, 2),
+                    status=status,
+                    period_start=period_start,
+                    period_end=period_end,
+                )
+            )
+
         return statuses

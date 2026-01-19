@@ -59,16 +59,17 @@ def transaction_to_dict(tx: TransactionModel) -> dict[str, Any]:
 
 @router.get("", response_model=TransactionList)
 async def get_transactions(
+    account_id: str = Query(..., description="Account ID to filter transactions"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     category: str | None = Query(None),
     since: str | None = Query(None),
     until: str | None = Query(None),
 ) -> dict[str, Any]:
-    """Get paginated list of transactions."""
+    """Get paginated list of transactions for a specific account."""
     async with get_session() as session:
-        # Build filters
-        filters = []
+        # Build filters - always filter by account
+        filters = [TransactionModel.account_id == account_id]
         if category:
             # Match either custom or monzo category
             filters.append(

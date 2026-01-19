@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Pencil, Trash2, Upload } from "lucide-react";
 import { useBudgetStatuses, useCreateBudget, useUpdateBudget, useDeleteBudget, useImportBudgets } from "@/hooks/useApi";
+import { useAccount } from "@/contexts/AccountContext";
 
 const categoryEmojis: Record<string, string> = {
   groceries: "🛒",
@@ -48,6 +49,7 @@ interface BudgetFormData {
 }
 
 export function Budgets() {
+  const { selectedAccount } = useAccount();
   const { data: budgetStatuses, isLoading, error } = useBudgetStatuses();
   const createBudget = useCreateBudget();
   const updateBudget = useUpdateBudget();
@@ -122,6 +124,8 @@ export function Budgets() {
   };
 
   const handleSubmit = async () => {
+    if (!selectedAccount) return;
+
     const amountInPence = Math.round(parseFloat(formData.amount) * 100);
 
     if (editingBudget) {
@@ -136,6 +140,7 @@ export function Budgets() {
       });
     } else {
       await createBudget.mutateAsync({
+        account_id: selectedAccount.id,
         category: formData.category,
         amount: amountInPence,
         period: formData.period,

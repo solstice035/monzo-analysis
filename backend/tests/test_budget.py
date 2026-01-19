@@ -290,33 +290,55 @@ class TestBudgetSummary:
 
     @pytest.mark.asyncio
     async def test_get_all_budget_statuses(self) -> None:
-        """Should return status for all budgets."""
+        """Should return status for all budgets using optimized single query."""
         from app.services.budget import BudgetService
+        from datetime import datetime
+
+        budget1_id = uuid4()
+        budget2_id = uuid4()
 
         budget1 = MagicMock()
-        budget1.id = uuid4()
+        budget1.id = budget1_id
         budget1.category = "Groceries"
         budget1.amount = 30000
         budget1.period = "monthly"
         budget1.start_day = 1
 
         budget2 = MagicMock()
-        budget2.id = uuid4()
+        budget2.id = budget2_id
         budget2.category = "Transport"
         budget2.amount = 10000
         budget2.period = "monthly"
         budget2.start_day = 1
 
+        # Mock transactions returned by the optimized single query
+        tx1 = MagicMock()
+        tx1.custom_category = "Groceries"
+        tx1.amount = -15000  # Spending is negative
+        tx1.created_at = datetime(2025, 1, 10, 12, 0, 0)
+
+        tx2 = MagicMock()
+        tx2.custom_category = "Transport"
+        tx2.amount = -8000  # Spending is negative
+        tx2.created_at = datetime(2025, 1, 12, 9, 0, 0)
+
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [budget1, budget2]
-        mock_session.execute.return_value = mock_result
+
+        # First call returns budgets, second call returns transactions
+        mock_budgets_result = MagicMock()
+        mock_budgets_result.scalars.return_value.all.return_value = [budget1, budget2]
+
+        mock_transactions_result = MagicMock()
+        mock_transactions_result.all.return_value = [tx1, tx2]
+
+        mock_session.execute.side_effect = [mock_budgets_result, mock_transactions_result]
 
         service = BudgetService(mock_session)
-        service.calculate_spend = AsyncMock(side_effect=[15000, 8000])
 
         statuses = await service.get_all_budget_statuses(date(2025, 1, 15))
 
         assert len(statuses) == 2
         assert statuses[0].spent == 15000
         assert statuses[1].spent == 8000
+        # Verify only 2 queries were made (optimized from N+1)
+        assert mock_session.execute.call_count == 2

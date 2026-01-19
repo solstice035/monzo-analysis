@@ -59,8 +59,8 @@ export interface AuthStatus {
 export interface Account {
   id: string;
   monzo_id: string;
-  account_type: string;
-  description?: string;
+  type: string;
+  name?: string;
 }
 
 export interface Transaction {
@@ -77,6 +77,7 @@ export interface Transaction {
 
 export interface Budget {
   id: string;
+  account_id: string;
   category: string;
   amount: number;
   period: 'monthly' | 'weekly';
@@ -97,6 +98,7 @@ export interface BudgetStatus {
 
 export interface CategoryRule {
   id: string;
+  account_id: string;
   name: string;
   conditions: Record<string, unknown>;
   target_category: string;
@@ -118,8 +120,12 @@ export const api = {
   getAuthStatus: () => apiRequest<AuthStatus>('/api/v1/auth/status'),
   getLoginUrl: () => apiRequest<{ url: string }>('/api/v1/auth/login'),
 
+  // Accounts
+  getAccounts: () => apiRequest<Account[]>('/api/v1/accounts'),
+
   // Transactions
-  getTransactions: (params?: {
+  getTransactions: (params: {
+    account_id: string;
     limit?: number;
     offset?: number;
     category?: string;
@@ -127,15 +133,15 @@ export const api = {
     until?: string;
   }) => {
     const searchParams = new URLSearchParams();
-    if (params?.limit) searchParams.set('limit', params.limit.toString());
-    if (params?.offset) searchParams.set('offset', params.offset.toString());
-    if (params?.category) searchParams.set('category', params.category);
-    if (params?.since) searchParams.set('since', params.since);
-    if (params?.until) searchParams.set('until', params.until);
+    searchParams.set('account_id', params.account_id);
+    if (params.limit) searchParams.set('limit', params.limit.toString());
+    if (params.offset) searchParams.set('offset', params.offset.toString());
+    if (params.category) searchParams.set('category', params.category);
+    if (params.since) searchParams.set('since', params.since);
+    if (params.until) searchParams.set('until', params.until);
 
-    const query = searchParams.toString();
     return apiRequest<{ items: Transaction[]; total: number }>(
-      `/api/v1/transactions${query ? `?${query}` : ''}`
+      `/api/v1/transactions?${searchParams.toString()}`
     );
   },
 
@@ -146,8 +152,10 @@ export const api = {
     }),
 
   // Budgets
-  getBudgets: () => apiRequest<Budget[]>('/api/v1/budgets'),
-  getBudgetStatuses: () => apiRequest<BudgetStatus[]>('/api/v1/budgets/status'),
+  getBudgets: (accountId: string) =>
+    apiRequest<Budget[]>(`/api/v1/budgets?account_id=${accountId}`),
+  getBudgetStatuses: (accountId: string) =>
+    apiRequest<BudgetStatus[]>(`/api/v1/budgets/status?account_id=${accountId}`),
   createBudget: (data: Omit<Budget, 'id'>) =>
     apiRequest<Budget>('/api/v1/budgets', {
       method: 'POST',
@@ -161,11 +169,11 @@ export const api = {
   deleteBudget: (id: string) =>
     apiRequest<void>(`/api/v1/budgets/${id}`, { method: 'DELETE' }),
 
-  importBudgets: async (file: File) => {
+  importBudgets: async (file: File, accountId: string) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/budgets/import`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/budgets/import?account_id=${accountId}`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
@@ -184,7 +192,8 @@ export const api = {
   },
 
   // Rules
-  getRules: () => apiRequest<CategoryRule[]>('/api/v1/rules'),
+  getRules: (accountId: string) =>
+    apiRequest<CategoryRule[]>(`/api/v1/rules?account_id=${accountId}`),
   createRule: (data: Omit<CategoryRule, 'id'>) =>
     apiRequest<CategoryRule>('/api/v1/rules', {
       method: 'POST',
@@ -204,23 +213,23 @@ export const api = {
     apiRequest<{ message: string }>('/api/v1/sync/trigger', { method: 'POST' }),
 
   // Dashboard summary
-  getDashboardSummary: () =>
+  getDashboardSummary: (accountId: string) =>
     apiRequest<{
       balance: number;
       spend_today: number;
       spend_this_month: number;
       transaction_count: number;
       top_categories: Array<{ category: string; amount: number }>;
-    }>('/api/v1/dashboard/summary'),
+    }>(`/api/v1/dashboard/summary?account_id=${accountId}`),
 
-  getDashboardTrends: (days = 30) =>
+  getDashboardTrends: (accountId: string, days = 30) =>
     apiRequest<{
       daily_spend: Array<{ date: string; amount: number }>;
       average_daily: number;
       total: number;
-    }>(`/api/v1/dashboard/trends?days=${days}`),
+    }>(`/api/v1/dashboard/trends?account_id=${accountId}&days=${days}`),
 
-  getRecurringTransactions: () =>
+  getRecurringTransactions: (accountId: string) =>
     apiRequest<{
       items: Array<{
         merchant_name: string;
@@ -235,5 +244,5 @@ export const api = {
         confidence: number;
       }>;
       total_monthly_cost: number;
-    }>('/api/v1/dashboard/recurring'),
+    }>(`/api/v1/dashboard/recurring?account_id=${accountId}`),
 };

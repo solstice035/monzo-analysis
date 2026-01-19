@@ -38,6 +38,7 @@ See TRD for architecture, data model, API design, and implementation approach.
 | Budget import | CSV file upload | Batch import budgets from spreadsheet |
 | Recurring detection | Interval analysis | Detect subscriptions by merchant + timing |
 | Dashboard charts | Recharts AreaChart | 30-day spending trend visualization |
+| Multi-account | Global account selector | Separate budgets/rules per account, default to joint |
 
 ---
 
@@ -100,19 +101,20 @@ Reference docs in [docs/api-reference/](docs/api-reference/)
 | `GET /api/v1/auth/status` | Check auth status | Returns authenticated + expiry |
 | `GET /api/v1/auth/login` | Get OAuth login URL | Redirects to Monzo |
 | `GET /api/v1/auth/callback` | OAuth callback | Handles token exchange |
-| `GET /api/v1/transactions` | List transactions | Supports category, limit, offset filters |
+| `GET /api/v1/accounts` | List accounts | Returns all linked Monzo accounts |
+| `GET /api/v1/transactions` | List transactions | Requires `account_id` param |
 | `PATCH /api/v1/transactions/{id}` | Update transaction | Set custom_category |
-| `GET /api/v1/budgets` | List budgets | All configured budgets |
-| `GET /api/v1/budgets/status` | Budget statuses | Spent, remaining, percentage |
-| `POST /api/v1/budgets` | Create budget | Category, amount, period |
-| `POST /api/v1/budgets/import` | Import CSV | Bulk import budgets |
-| `GET /api/v1/rules` | List rules | Category assignment rules |
-| `POST /api/v1/rules` | Create rule | Conditions + target category |
+| `GET /api/v1/budgets` | List budgets | Requires `account_id` param |
+| `GET /api/v1/budgets/status` | Budget statuses | Requires `account_id` param |
+| `POST /api/v1/budgets` | Create budget | Requires `account_id` in body |
+| `POST /api/v1/budgets/import` | Import CSV | Requires `account_id` param |
+| `GET /api/v1/rules` | List rules | Requires `account_id` param |
+| `POST /api/v1/rules` | Create rule | Requires `account_id` in body |
 | `GET /api/v1/sync/status` | Sync status | Last sync, status, errors |
 | `POST /api/v1/sync/trigger` | Trigger sync | Manual sync start |
-| `GET /api/v1/dashboard/summary` | Dashboard stats | Balance, spend, top categories |
-| `GET /api/v1/dashboard/trends` | Spending trends | Daily spend for chart |
-| `GET /api/v1/dashboard/recurring` | Recurring payments | Detected subscriptions |
+| `GET /api/v1/dashboard/summary` | Dashboard stats | Requires `account_id` param |
+| `GET /api/v1/dashboard/trends` | Spending trends | Requires `account_id` param |
+| `GET /api/v1/dashboard/recurring` | Recurring payments | Requires `account_id` param |
 
 ### Transaction Payload (FR-02)
 
@@ -220,7 +222,7 @@ monzo-analysis/
 |-----------|---------|---------|
 | FastAPI | 0.128.x | Async web framework |
 | SQLAlchemy | 2.1.x | Async ORM |
-| APScheduler | 4.x | Scheduled sync (native async) |
+| APScheduler | 3.10.x | Scheduled sync (pinned to 3.x for stability) |
 | httpx | latest | Async HTTP client |
 | asyncpg | latest | PostgreSQL driver |
 
@@ -278,10 +280,11 @@ curl -X POST -H 'Content-Type: application/json' \
 
 | Question | Resolution |
 |----------|------------|
-| Joint account handling | Configurable per-budget (combined or separate) |
+| Joint account handling | Completely separate budgets/rules per account with global selector |
 | Pot transfers | Excluded from spending totals |
 | Sync frequency | Daily default, configurable, with manual trigger |
 | Rules priority | Higher priority number = checked first, all conditions AND |
+| Default account | Joint account selected by default on first load |
 
 ---
 
@@ -306,6 +309,9 @@ curl -X POST -H 'Content-Type: application/json' \
 | Budget Import CSV | ✅ Complete | 2026-01-18 |
 | Recurring Detection | ✅ Complete | 2026-01-18 |
 | Subscriptions Page | ✅ Complete | 2026-01-18 |
+| Connect Button Fix | ✅ Complete | 2026-01-19 |
+| First Live Sync | ✅ Complete | 2026-01-19 |
+| Multi-Account Support | ✅ Complete | 2026-01-19 |
 
 ---
 
@@ -372,6 +378,7 @@ Access the app at http://localhost
 | Spending Trends | 30-day daily spending chart | `frontend/src/pages/dashboard.tsx` |
 | Recurring Detection | Subscription identification | `backend/app/services/recurring.py` |
 | Subscriptions Page | View and manage recurring payments | `frontend/src/pages/subscriptions.tsx` |
+| Multi-Account | Global account selector with per-account data | `frontend/src/contexts/AccountContext.tsx` |
 
 ### Known Issues
 
@@ -380,3 +387,35 @@ See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for code re
 - Silent Slack failures need logging
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
+
+---
+
+## Troubleshooting
+
+### Bugs Fixed (2026-01-19)
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| Connect button not working | API URL doubled (`/api/api/v1/...`) | Removed `VITE_API_URL: /api` build arg from docker-compose.yml |
+| Login endpoint mismatch | Backend returned redirect, frontend expected JSON | Changed `auth.py` to return `{"url": "..."}` |
+| APScheduler import error | APScheduler 4.x has different API | Pinned to `apscheduler>=3.10.0,<4.0.0` |
+
+### Monzo Strong Customer Authentication (SCA)
+
+After OAuth authentication, Monzo requires **in-app approval** before API calls work:
+
+1. OAuth flow completes successfully (tokens stored)
+2. First API call to `/accounts` returns **403 Forbidden**
+3. User must open **Monzo mobile app** and approve the connection
+4. After approval, sync works normally
+
+**Symptom:** Sync status shows `"error": "Client error '403 Forbidden' for url 'https://api.monzo.com/accounts'"`
+
+**Fix:** Open Monzo app → Approve "personal_analysis" connection → Sync again
+
+### Docker Build Notes
+
+- Frontend uses `VITE_API_URL` at build time (not runtime)
+- Empty `VITE_API_URL` means endpoints in `api.ts` are used as-is (`/api/v1/...`)
+- Nginx proxies `/api/` to backend at `http://backend:8000/api/`
+- Port 8000 is exposed for direct backend access during development

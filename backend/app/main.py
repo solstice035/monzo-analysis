@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.accounts import router as accounts_router
 from app.api.auth import router as auth_router
 from app.api.budgets import router as budgets_router
 from app.api.dashboard import router as dashboard_router
@@ -67,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "healthy"}
 
     # Include routers
+    app.include_router(accounts_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(transactions_router, prefix="/api/v1")
     app.include_router(budgets_router, prefix="/api/v1")

@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.budget import Budget
+    from app.models.category_rule import CategoryRule
     from app.models.pot import Pot
     from app.models.transaction import Transaction
 
@@ -45,6 +47,16 @@ class Account(Base, TimestampMixin):
     )
     pots: Mapped[list["Pot"]] = relationship(
         "Pot",
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    budgets: Mapped[list["Budget"]] = relationship(
+        "Budget",
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    category_rules: Mapped[list["CategoryRule"]] = relationship(
+        "CategoryRule",
         back_populates="account",
         cascade="all, delete-orphan",
     )

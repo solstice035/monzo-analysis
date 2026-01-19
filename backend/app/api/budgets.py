@@ -5,7 +5,7 @@ import io
 from datetime import date
 from typing import Any, Literal
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from app.database import get_session
@@ -18,6 +18,7 @@ class BudgetResponse(BaseModel):
     """Budget response model."""
 
     id: str
+    account_id: str
     category: str
     amount: int
     period: Literal["monthly", "weekly"]
@@ -27,6 +28,7 @@ class BudgetResponse(BaseModel):
 class BudgetCreate(BaseModel):
     """Request model for creating a budget."""
 
+    account_id: str
     category: str
     amount: int
     period: Literal["monthly", "weekly"] = "monthly"
@@ -57,14 +59,17 @@ class BudgetStatusResponse(BaseModel):
 
 
 @router.get("", response_model=list[BudgetResponse])
-async def get_budgets() -> list[dict[str, Any]]:
-    """Get all budgets."""
+async def get_budgets(
+    account_id: str = Query(..., description="Account ID to filter budgets"),
+) -> list[dict[str, Any]]:
+    """Get all budgets for a specific account."""
     async with get_session() as session:
         service = BudgetService(session)
-        budgets = await service.get_all_budgets()
+        budgets = await service.get_all_budgets(account_id)
         return [
             {
                 "id": str(b.id),
+                "account_id": str(b.account_id),
                 "category": b.category,
                 "amount": b.amount,
                 "period": b.period,
@@ -76,10 +81,11 @@ async def get_budgets() -> list[dict[str, Any]]:
 
 @router.post("", response_model=BudgetResponse, status_code=201)
 async def create_budget(data: BudgetCreate) -> dict[str, Any]:
-    """Create a new budget."""
+    """Create a new budget for a specific account."""
     async with get_session() as session:
         service = BudgetService(session)
         budget = await service.create_budget(
+            account_id=data.account_id,
             category=data.category,
             amount=data.amount,
             period=data.period,
@@ -87,6 +93,7 @@ async def create_budget(data: BudgetCreate) -> dict[str, Any]:
         )
         return {
             "id": str(budget.id),
+            "account_id": str(budget.account_id),
             "category": budget.category,
             "amount": budget.amount,
             "period": budget.period,
@@ -110,6 +117,7 @@ async def update_budget(budget_id: str, data: BudgetUpdate) -> dict[str, Any]:
             raise HTTPException(status_code=404, detail="Budget not found")
         return {
             "id": str(budget.id),
+            "account_id": str(budget.account_id),
             "category": budget.category,
             "amount": budget.amount,
             "period": budget.period,
@@ -128,11 +136,13 @@ async def delete_budget(budget_id: str) -> None:
 
 
 @router.get("/status", response_model=list[BudgetStatusResponse])
-async def get_budget_statuses() -> list[dict[str, Any]]:
-    """Get current status for all budgets."""
+async def get_budget_statuses(
+    account_id: str = Query(..., description="Account ID to filter budget statuses"),
+) -> list[dict[str, Any]]:
+    """Get current status for all budgets for a specific account."""
     async with get_session() as session:
         service = BudgetService(session)
-        statuses = await service.get_all_budget_statuses(date.today())
+        statuses = await service.get_all_budget_statuses(account_id, date.today())
         return [
             {
                 "budget_id": str(s.budget_id),
@@ -158,8 +168,11 @@ class ImportResult(BaseModel):
 
 
 @router.post("/import", response_model=ImportResult)
-async def import_budgets_csv(file: UploadFile = File(...)) -> dict[str, Any]:
-    """Import budgets from CSV file.
+async def import_budgets_csv(
+    account_id: str = Query(..., description="Account ID to import budgets into"),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Import budgets from CSV file for a specific account.
 
     Expected CSV format:
     category,amount,period,start_day
@@ -187,7 +200,7 @@ async def import_budgets_csv(file: UploadFile = File(...)) -> dict[str, Any]:
 
     async with get_session() as session:
         service = BudgetService(session)
-        existing_budgets = await service.get_all_budgets()
+        existing_budgets = await service.get_all_budgets(account_id)
         existing_categories = {b.category.lower() for b in existing_budgets}
 
         for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is 1)
@@ -197,7 +210,7 @@ async def import_budgets_csv(file: UploadFile = File(...)) -> dict[str, Any]:
                     errors.append(f"Row {row_num}: Missing category")
                     continue
 
-                # Skip if category already exists
+                # Skip if category already exists for this account
                 if category.lower() in existing_categories:
                     skipped += 1
                     continue
@@ -225,6 +238,7 @@ async def import_budgets_csv(file: UploadFile = File(...)) -> dict[str, Any]:
                     start_day = 1
 
                 await service.create_budget(
+                    account_id=account_id,
                     category=category,
                     amount=amount,
                     period=period,
