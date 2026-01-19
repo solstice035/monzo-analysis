@@ -11,6 +11,8 @@ const buttonVariants = cva(
           "bg-coral text-white shadow-[0_4px_20px_rgba(255,90,95,0.4)] hover:translate-y-[-3px] hover:shadow-[0_8px_40px_rgba(255,90,95,0.6)]",
         secondary:
           "bg-transparent text-white border-2 border-white hover:bg-white hover:text-navy",
+        outline:
+          "bg-transparent text-stone border border-navy-mid hover:text-white hover:border-coral",
         mint: "bg-mint text-navy hover:translate-y-[-3px] hover:shadow-[0_8px_40px_rgba(0,217,181,0.5)]",
         ghost: "text-stone hover:text-white hover:bg-navy-mid",
         link: "text-coral underline-offset-4 hover:underline",

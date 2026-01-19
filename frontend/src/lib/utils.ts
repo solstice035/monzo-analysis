@@ -1,68 +1,25 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-/**
- * Merge Tailwind CSS classes with proper precedence handling.
- * Uses clsx for conditional classes and tailwind-merge for deduplication.
- */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs))
 }
 
-/**
- * Format a number of pence as a currency string.
- * @param pence Amount in pence (can be negative)
- * @param currency Currency code (default: GBP)
- */
-export function formatCurrency(pence: number, currency = 'GBP'): string {
-  const pounds = pence / 100;
-  return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency,
-  }).format(pounds);
+export function formatCurrency(amountInPence: number): string {
+  return `£${(amountInPence / 100).toFixed(2)}`
 }
 
-/**
- * Format a date for display.
- * @param date Date string or Date object
- * @param options Intl.DateTimeFormat options
- */
-export function formatDate(
-  date: string | Date,
-  options: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }
-): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('en-GB', options).format(d);
-}
+export function formatRelativeDate(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-/**
- * Format a relative date (e.g., "2 days ago").
- * @param date Date string or Date object
- */
-export function formatRelativeDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-  const now = new Date();
-  const diffMs = d.getTime() - now.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  if (Math.abs(diffDays) < 1) {
-    const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-    if (Math.abs(diffHours) < 1) {
-      const diffMinutes = Math.round(diffMs / (1000 * 60));
-      return rtf.format(diffMinutes, 'minute');
-    }
-    return rtf.format(diffHours, 'hour');
-  }
-
-  if (Math.abs(diffDays) < 30) {
-    return rtf.format(diffDays, 'day');
-  }
-
-  const diffMonths = Math.round(diffDays / 30);
-  return rtf.format(diffMonths, 'month');
+  if (diffDays === 0) return "Today"
+  if (diffDays === 1) return "Yesterday"
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 14) return "1 week ago"
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+  if (diffDays < 60) return "1 month ago"
+  return `${Math.floor(diffDays / 30)} months ago`
 }
