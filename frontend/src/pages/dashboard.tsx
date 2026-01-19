@@ -3,63 +3,42 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatBlock } from "@/components/ui/stat-block";
 import { BudgetBar } from "@/components/ui/budget-bar";
 import { TransactionRow } from "@/components/ui/transaction-row";
-import { useTriggerSync } from "@/hooks/useApi";
+import {
+  useTriggerSync,
+  useDashboardSummary,
+  useDashboardTrends,
+  useBudgetStatuses,
+  useTransactions,
+} from "@/hooks/useApi";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-// Mock data - will be replaced with real API calls
-const mockStats = {
-  spent: 284700,
-  remaining: 115300,
-  savings: 45000,
-  savingsRate: 24,
+const categoryEmojis: Record<string, string> = {
+  groceries: "🛒",
+  eating_out: "🍽️",
+  shopping: "🛍️",
+  transport: "🚗",
+  entertainment: "🎬",
+  bills: "📄",
+  general: "📦",
+  holidays: "✈️",
+  cash: "💵",
+  expenses: "💼",
 };
-
-const mockBudgets = [
-  { name: "Groceries", spent: 28500, budget: 40000, emoji: "🛒" },
-  { name: "Eating Out", spent: 16500, budget: 20000, emoji: "🍽️" },
-  { name: "Shopping", spent: 31200, budget: 25000, emoji: "🛍️" },
-  { name: "Transport", spent: 9400, budget: 15000, emoji: "🚗" },
-];
-
-const mockTransactions = [
-  {
-    id: "1",
-    merchant: "Sainsbury's",
-    category: "groceries",
-    amount: -4782,
-    date: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    merchant: "Pret A Manger",
-    category: "eating_out",
-    amount: -450,
-    date: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    merchant: "TfL",
-    category: "transport",
-    amount: -280,
-    date: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "4",
-    merchant: "Salary",
-    category: "income",
-    amount: 345000,
-    date: new Date(Date.now() - 172800000).toISOString(),
-  },
-  {
-    id: "5",
-    merchant: "Netflix",
-    category: "entertainment",
-    amount: -1599,
-    date: new Date(Date.now() - 259200000).toISOString(),
-  },
-];
 
 export function Dashboard() {
   const syncMutation = useTriggerSync();
+  const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: trends } = useDashboardTrends(30);
+  const { data: budgets } = useBudgetStatuses();
+  const { data: transactionsData } = useTransactions({ limit: 5 });
 
   const handleSync = () => {
     syncMutation.mutate();
@@ -71,6 +50,28 @@ export function Dashboard() {
   const year = now.getFullYear();
   const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
   const daysUntilReset = daysInMonth - now.getDate();
+
+  // Transform trends data for the chart
+  const chartData =
+    trends?.daily_spend.map((d) => ({
+      date: new Date(d.date).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      }),
+      amount: d.amount / 100,
+    })) || [];
+
+  // Calculate stats from real data
+  const spendThisMonth = summary?.spend_this_month || 0;
+  const balance = summary?.balance || 0;
+  const spendToday = summary?.spend_today || 0;
+  const transactionCount = summary?.transaction_count || 0;
+
+  // Take top 4 budgets for the dashboard
+  const topBudgets = (budgets || []).slice(0, 4);
+
+  // Recent transactions
+  const recentTransactions = transactionsData?.items || [];
 
   return (
     <div>
@@ -84,30 +85,85 @@ export function Dashboard() {
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         <StatBlock
-          label="SPENT"
-          value={formatCurrency(mockStats.spent)}
-          change="↓ 12% VS DEC"
-          changeType="positive"
+          label="SPENT THIS MONTH"
+          value={formatCurrency(spendThisMonth)}
+          change={summaryLoading ? "Loading..." : `${transactionCount} transactions`}
+          changeType="neutral"
         />
         <StatBlock
-          label="REMAINING"
-          value={formatCurrency(mockStats.remaining)}
-          change="ON TRACK"
-          changeType="positive"
+          label="BALANCE"
+          value={formatCurrency(balance)}
+          change={balance >= 0 ? "POSITIVE" : "NEGATIVE"}
+          changeType={balance >= 0 ? "positive" : "negative"}
         />
         <StatBlock
-          label="SAVINGS"
-          value={formatCurrency(mockStats.savings)}
-          change="↑ 15%"
-          changeType="positive"
+          label="SPENT TODAY"
+          value={formatCurrency(spendToday)}
+          change={spendToday === 0 ? "NOTHING YET" : ""}
+          changeType="neutral"
         />
         <StatBlock
-          label="RATE"
-          value={`${mockStats.savingsRate}%`}
-          change="TARGET: 20%"
-          changeType="positive"
+          label="DAILY AVG"
+          value={formatCurrency(trends?.average_daily || 0)}
+          change="LAST 30 DAYS"
+          changeType="neutral"
         />
       </div>
+
+      {/* Spending Trend Chart */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>SPENDING TREND (30 DAYS)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#FF5A5F" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#FF5A5F" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2B5278" />
+                <XAxis
+                  dataKey="date"
+                  stroke="#6B7280"
+                  fontSize={11}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  stroke="#6B7280"
+                  fontSize={11}
+                  tickLine={false}
+                  tickFormatter={(value) => `£${value}`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1B3A5C",
+                    border: "1px solid #2B5278",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "#fff" }}
+                  formatter={(value) => [`£${Number(value).toFixed(2)}`, "Spent"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#FF5A5F"
+                  strokeWidth={2}
+                  fill="url(#spendGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-stone">
+              No spending data available
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 gap-6">
         {/* Budget Progress */}
@@ -116,15 +172,21 @@ export function Dashboard() {
             <CardTitle>BUDGET PROGRESS</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {mockBudgets.map((budget) => (
-              <BudgetBar
-                key={budget.name}
-                name={budget.name}
-                spent={budget.spent}
-                budget={budget.budget}
-                emoji={budget.emoji}
-              />
-            ))}
+            {topBudgets.length > 0 ? (
+              topBudgets.map((budget) => (
+                <BudgetBar
+                  key={budget.budget_id}
+                  name={budget.category.replace(/_/g, " ")}
+                  spent={budget.spent}
+                  budget={budget.amount}
+                  emoji={categoryEmojis[budget.category] || "📦"}
+                />
+              ))
+            ) : (
+              <div className="text-center py-8 text-stone">
+                No budgets set. Visit Budgets page to create one.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -134,18 +196,56 @@ export function Dashboard() {
             <CardTitle>RECENT TRANSACTIONS</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockTransactions.map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                merchant={tx.merchant}
-                category={tx.category}
-                amount={tx.amount}
-                date={tx.date}
-              />
-            ))}
+            {recentTransactions.length > 0 ? (
+              recentTransactions.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  merchant={tx.merchant_name || "Unknown"}
+                  category={tx.custom_category || tx.monzo_category || "general"}
+                  amount={tx.amount}
+                  date={tx.created_at}
+                />
+              ))
+            ) : (
+              <div className="text-center py-8 text-stone">
+                No transactions yet. Sync to fetch data.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Top Categories */}
+      {summary?.top_categories && summary.top_categories.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>TOP SPENDING CATEGORIES</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-5 gap-4">
+              {summary.top_categories.map((cat) => (
+                <div
+                  key={cat.category}
+                  className="bg-navy rounded-xl p-4 text-center"
+                >
+                  <div className="text-2xl mb-2">
+                    {categoryEmojis[cat.category] || "📦"}
+                  </div>
+                  <div className="text-sm text-stone capitalize mb-1">
+                    {cat.category.replace(/_/g, " ")}
+                  </div>
+                  <div
+                    className="text-lg text-white"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {formatCurrency(cat.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

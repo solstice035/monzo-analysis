@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "@/components/layout";
-import { Dashboard, Transactions, Budgets, Rules, Settings } from "@/pages";
+import { Dashboard, Transactions, Budgets, Rules, Subscriptions, Settings } from "@/pages";
 
 function App() {
   return (
@@ -11,6 +11,7 @@ function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="budgets" element={<Budgets />} />
           <Route path="rules" element={<Rules />} />
+          <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

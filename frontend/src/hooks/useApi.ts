@@ -11,6 +11,8 @@ export const queryKeys = {
   rules: ['rules'] as const,
   syncStatus: ['syncStatus'] as const,
   dashboardSummary: ['dashboardSummary'] as const,
+  dashboardTrends: (days: number) => ['dashboardTrends', days] as const,
+  recurringTransactions: ['recurringTransactions'] as const,
 };
 
 // Auth hooks
@@ -105,6 +107,18 @@ export function useDeleteBudget() {
   });
 }
 
+export function useImportBudgets() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => api.importBudgets(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.budgets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.budgetStatuses });
+    },
+  });
+}
+
 // Rule hooks
 export function useRules() {
   return useQuery({
@@ -172,5 +186,19 @@ export function useDashboardSummary() {
   return useQuery({
     queryKey: queryKeys.dashboardSummary,
     queryFn: api.getDashboardSummary,
+  });
+}
+
+export function useDashboardTrends(days = 30) {
+  return useQuery({
+    queryKey: queryKeys.dashboardTrends(days),
+    queryFn: () => api.getDashboardTrends(days),
+  });
+}
+
+export function useRecurringTransactions() {
+  return useQuery({
+    queryKey: queryKeys.recurringTransactions,
+    queryFn: api.getRecurringTransactions,
   });
 }

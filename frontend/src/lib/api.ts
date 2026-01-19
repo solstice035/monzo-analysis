@@ -161,6 +161,28 @@ export const api = {
   deleteBudget: (id: string) =>
     apiRequest<void>(`/api/v1/budgets/${id}`, { method: 'DELETE' }),
 
+  importBudgets: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/budgets/import`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new ApiError(
+        response.status,
+        data?.detail || response.statusText,
+        data
+      );
+    }
+
+    return response.json() as Promise<{ imported: number; skipped: number; errors: string[] }>;
+  },
+
   // Rules
   getRules: () => apiRequest<CategoryRule[]>('/api/v1/rules'),
   createRule: (data: Omit<CategoryRule, 'id'>) =>
@@ -190,4 +212,28 @@ export const api = {
       transaction_count: number;
       top_categories: Array<{ category: string; amount: number }>;
     }>('/api/v1/dashboard/summary'),
+
+  getDashboardTrends: (days = 30) =>
+    apiRequest<{
+      daily_spend: Array<{ date: string; amount: number }>;
+      average_daily: number;
+      total: number;
+    }>(`/api/v1/dashboard/trends?days=${days}`),
+
+  getRecurringTransactions: () =>
+    apiRequest<{
+      items: Array<{
+        merchant_name: string;
+        category: string;
+        average_amount: number;
+        frequency_days: number;
+        frequency_label: string;
+        transaction_count: number;
+        monthly_cost: number;
+        last_transaction: string;
+        next_expected: string | null;
+        confidence: number;
+      }>;
+      total_monthly_cost: number;
+    }>('/api/v1/dashboard/recurring'),
 };

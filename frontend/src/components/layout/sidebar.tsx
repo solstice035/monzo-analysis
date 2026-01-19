@@ -6,12 +6,14 @@ import {
   PiggyBank,
   Settings,
   Workflow,
+  RefreshCw,
 } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: Receipt },
   { to: "/budgets", label: "Budgets", icon: PiggyBank },
+  { to: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
   { to: "/rules", label: "Rules", icon: Workflow },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
