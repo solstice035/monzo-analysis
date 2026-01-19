@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,14 +13,25 @@ from app.api.rules import router as rules_router
 from app.api.sync import router as sync_router
 from app.api.transactions import router as transactions_router
 from app.config import Settings
+from app.services.scheduler import create_scheduler, start_scheduler, stop_scheduler
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown."""
-    # Startup
+    # Startup - create and start the scheduler
+    scheduler = create_scheduler()
+    start_scheduler(scheduler)
+    app.state.scheduler = scheduler
+    logger.info("Application startup complete")
+
     yield
-    # Shutdown
+
+    # Shutdown - stop the scheduler
+    stop_scheduler(scheduler)
+    logger.info("Application shutdown complete")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

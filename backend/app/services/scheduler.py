@@ -93,25 +93,29 @@ async def run_scheduled_sync() -> int | None:
     Returns:
         Number of transactions synced, or None on error
     """
+    from app.database import get_session
+
     logger.info("Starting scheduled sync")
     start_time = datetime.now(timezone.utc)
 
     try:
-        # Run the sync
-        sync_service = SyncService()
-        transactions_synced = await sync_service.run_sync()
+        # Run the sync with database session
+        async with get_session() as session:
+            sync_service = SyncService(session)
+            transactions_synced = await sync_service.run_sync()
 
         # Calculate duration
         duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         # Send Slack notification
         settings = get_settings()
-        slack_service = SlackService(webhook_url=settings.slack_webhook_url)
-        await slack_service.notify_sync_complete(
-            transactions_synced=transactions_synced,
-            new_transactions=transactions_synced,  # TODO: Track new vs updated
-            duration_seconds=duration,
-        )
+        if settings.slack_webhook_url:
+            slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+            await slack_service.notify_sync_complete(
+                transactions_synced=transactions_synced,
+                new_transactions=transactions_synced,
+                duration_seconds=duration,
+            )
 
         # Check budget alerts
         await check_budget_alerts()
@@ -141,36 +145,37 @@ async def check_budget_alerts() -> None:
     - Budgets at 80-99% usage (warning)
     - Budgets at 100%+ usage (exceeded)
     """
-    settings = get_settings()
-    slack_service = SlackService(webhook_url=settings.slack_webhook_url)
-
-    # Get a database session (in production, this would come from dependency injection)
-    # For now, we'll need to create one
-    # TODO: Integrate with proper session management
     from datetime import date
 
-    # Mock session for now - in production this would be injected
-    # This is a placeholder that tests will mock
-    budget_service = BudgetService(session=None)  # type: ignore
+    from app.database import get_session
+
+    settings = get_settings()
+    if not settings.slack_webhook_url:
+        logger.debug("Slack webhook not configured, skipping budget alerts")
+        return
+
+    slack_service = SlackService(webhook_url=settings.slack_webhook_url)
 
     try:
-        statuses = await budget_service.get_all_budget_statuses(date.today())
+        async with get_session() as session:
+            budget_service = BudgetService(session=session)
+            statuses = await budget_service.get_all_budget_statuses(date.today())
 
-        for status in statuses:
-            if status.status == "over":
-                await slack_service.notify_budget_exceeded(
-                    category=status.category,
-                    amount=status.amount,
-                    spent=status.spent,
-                    percentage=status.percentage,
-                )
-            elif status.status == "warning":
-                await slack_service.notify_budget_warning(
-                    category=status.category,
-                    amount=status.amount,
-                    spent=status.spent,
-                    percentage=status.percentage,
-                )
+            for status in statuses:
+                if status.status == "over":
+                    await slack_service.notify_budget_exceeded(
+                        category=status.category,
+                        amount=status.amount,
+                        spent=status.spent,
+                        percentage=status.percentage,
+                    )
+                elif status.status == "warning":
+                    await slack_service.notify_budget_warning(
+                        category=status.category,
+                        amount=status.amount,
+                        spent=status.spent,
+                        percentage=status.percentage,
+                    )
 
     except Exception as e:
         logger.error(f"Budget alert check failed: {e}")

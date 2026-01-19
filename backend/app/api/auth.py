@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.config import Settings
+from app.database import get_session
 from app.models import Auth
 from app.services.monzo import (
     build_authorization_url,
@@ -31,32 +32,45 @@ class AuthStatus(BaseModel):
     expires_at: datetime | None = None
 
 
-# Dependency functions that can be mocked in tests
 async def get_current_auth() -> Auth | None:
-    """Get the current auth tokens from database.
-
-    This is a placeholder - actual implementation will use database.
-    """
-    # TODO: Implement database lookup
-    return None
+    """Get the current auth tokens from database."""
+    async with get_session() as session:
+        result = await session.execute(select(Auth).limit(1))
+        return result.scalar_one_or_none()
 
 
 async def store_tokens(access_token: str, refresh_token: str, expires_at: datetime) -> Auth:
-    """Store OAuth tokens in database.
+    """Store OAuth tokens in database (upsert pattern)."""
+    async with get_session() as session:
+        # Delete any existing auth record
+        result = await session.execute(select(Auth))
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.access_token = access_token
+            existing.refresh_token = refresh_token
+            existing.expires_at = expires_at
+            auth = existing
+        else:
+            auth = Auth(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=expires_at,
+            )
+            session.add(auth)
+        await session.commit()
+        await session.refresh(auth)
+        return auth
 
-    This is a placeholder - actual implementation will use database.
-    """
-    # TODO: Implement database storage
-    return Auth(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_at=expires_at,
-    )
+
+class LoginUrlResponse(BaseModel):
+    """Response model for login URL."""
+
+    url: str
 
 
-@router.get("/login")
-async def login() -> RedirectResponse:
-    """Redirect to Monzo OAuth authorization page."""
+@router.get("/login", response_model=LoginUrlResponse)
+async def login() -> dict[str, str]:
+    """Get Monzo OAuth authorization URL for frontend to redirect to."""
     settings = Settings()
 
     # Generate state for CSRF protection
@@ -64,7 +78,7 @@ async def login() -> RedirectResponse:
     _oauth_states.add(state)
 
     auth_url = build_authorization_url(state, settings)
-    return RedirectResponse(url=auth_url, status_code=307)
+    return {"url": auth_url}
 
 
 @router.get("/callback")

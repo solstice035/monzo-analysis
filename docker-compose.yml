@@ -75,8 +75,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
     container_name: monzo-frontend
     restart: unless-stopped
     ports:
