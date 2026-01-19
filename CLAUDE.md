@@ -34,6 +34,10 @@ See TRD for architecture, data model, API design, and implementation approach.
 | Display font | Bebas Neue | Striking condensed headlines for big numbers |
 | Body font | Outfit | Modern geometric sans, friendly yet professional |
 | Mono font | Space Mono | Financial data and technical values |
+| Category override | User click → modal | Allow users to reclassify transactions |
+| Budget import | CSV file upload | Batch import budgets from spreadsheet |
+| Recurring detection | Interval analysis | Detect subscriptions by merchant + timing |
+| Dashboard charts | Recharts AreaChart | 30-day spending trend visualization |
 
 ---
 
@@ -79,7 +83,7 @@ See mockup: [docs/visual-identity-mockup.html](docs/visual-identity-mockup.html)
 
 Reference docs in [docs/api-reference/](docs/api-reference/)
 
-### Key Endpoints
+### Monzo API Endpoints
 
 | Endpoint | Purpose | Notes |
 |----------|---------|-------|
@@ -88,6 +92,27 @@ Reference docs in [docs/api-reference/](docs/api-reference/)
 | `GET /pots` | List savings pots | Balance per pot |
 | `GET /transactions` | Fetch transactions | Paginate with `since`, `before`, `limit` |
 | `PATCH /transactions/{id}` | Add metadata | Store custom category overrides |
+
+### Internal API Endpoints
+
+| Endpoint | Purpose | Notes |
+|----------|---------|-------|
+| `GET /api/v1/auth/status` | Check auth status | Returns authenticated + expiry |
+| `GET /api/v1/auth/login` | Get OAuth login URL | Redirects to Monzo |
+| `GET /api/v1/auth/callback` | OAuth callback | Handles token exchange |
+| `GET /api/v1/transactions` | List transactions | Supports category, limit, offset filters |
+| `PATCH /api/v1/transactions/{id}` | Update transaction | Set custom_category |
+| `GET /api/v1/budgets` | List budgets | All configured budgets |
+| `GET /api/v1/budgets/status` | Budget statuses | Spent, remaining, percentage |
+| `POST /api/v1/budgets` | Create budget | Category, amount, period |
+| `POST /api/v1/budgets/import` | Import CSV | Bulk import budgets |
+| `GET /api/v1/rules` | List rules | Category assignment rules |
+| `POST /api/v1/rules` | Create rule | Conditions + target category |
+| `GET /api/v1/sync/status` | Sync status | Last sync, status, errors |
+| `POST /api/v1/sync/trigger` | Trigger sync | Manual sync start |
+| `GET /api/v1/dashboard/summary` | Dashboard stats | Balance, spend, top categories |
+| `GET /api/v1/dashboard/trends` | Spending trends | Daily spend for chart |
+| `GET /api/v1/dashboard/recurring` | Recurring payments | Detected subscriptions |
 
 ### Transaction Payload (FR-02)
 
@@ -276,6 +301,11 @@ curl -X POST -H 'Content-Type: application/json' \
 | MVP implementation | ✅ Complete | 2026-01-18 |
 | OAuth Flow Tested | ✅ Complete | 2026-01-18 |
 | Local Deployment | ✅ Running | 2026-01-18 |
+| Dashboard Trends | ✅ Complete | 2026-01-18 |
+| Category Override | ✅ Complete | 2026-01-18 |
+| Budget Import CSV | ✅ Complete | 2026-01-18 |
+| Recurring Detection | ✅ Complete | 2026-01-18 |
+| Subscriptions Page | ✅ Complete | 2026-01-18 |
 
 ---
 
@@ -319,15 +349,33 @@ Access the app at http://localhost
 1. ~~**Monzo Developer Account**~~ ✅ Registered
 2. ~~**Configure `.env`**~~ ✅ Configured
 3. ~~**First OAuth**~~ ✅ Tested successfully (2026-01-18)
-4. **Token Persistence** - Implement database storage for OAuth tokens
-5. **Initial Sync** - Trigger first transaction sync from Monzo
-6. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
-7. **Slack Integration** - Configure webhook for daily summaries
+4. ~~**Token Persistence**~~ ✅ Database storage implemented
+5. ~~**Sync Service**~~ ✅ APScheduler integration complete
+6. ~~**Category Override**~~ ✅ Transaction reclassification working
+7. ~~**Budget Import**~~ ✅ CSV import functional
+8. ~~**Dashboard Trends**~~ ✅ Recharts visualization complete
+9. ~~**Recurring Detection**~~ ✅ Subscription detection working
+10. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
+11. **Initial Sync** - Trigger first real transaction sync from Monzo
+12. **Slack Integration** - Configure webhook for daily summaries
+
+### Implemented Features
+
+| Feature | Description | Location |
+|---------|-------------|----------|
+| OAuth Flow | Monzo authentication with token storage | `backend/app/api/auth.py` |
+| Scheduled Sync | APScheduler-based background sync | `backend/app/services/scheduler.py` |
+| Transaction API | CRUD with filtering and category override | `backend/app/api/transactions.py` |
+| Budget Management | Create, update, delete, import CSV | `backend/app/api/budgets.py` |
+| Rules Engine | Category assignment rules | `backend/app/api/rules.py` |
+| Dashboard Summary | Real-time stats from database | `backend/app/api/dashboard.py` |
+| Spending Trends | 30-day daily spending chart | `frontend/src/pages/dashboard.tsx` |
+| Recurring Detection | Subscription identification | `backend/app/services/recurring.py` |
+| Subscriptions Page | View and manage recurring payments | `frontend/src/pages/subscriptions.tsx` |
 
 ### Known Issues
 
 See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for code review findings:
-- Token storage is placeholder (returns success but doesn't persist)
 - N+1 queries in budget status calculation (performance)
 - Silent Slack failures need logging
 
