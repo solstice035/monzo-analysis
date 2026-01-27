@@ -312,32 +312,38 @@ class TestRulesService:
 
     @pytest.mark.asyncio
     async def test_get_all_enabled_rules(self) -> None:
-        """Should fetch all enabled rules ordered by priority."""
+        """Should fetch all enabled rules ordered by priority for an account."""
         from app.services.rules import RulesService
+        from uuid import uuid4
+
+        account_id = str(uuid4())
 
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [
-            MagicMock(priority=100),
-            MagicMock(priority=50),
+            MagicMock(priority=100, account_id=account_id),
+            MagicMock(priority=50, account_id=account_id),
         ]
         mock_session.execute.return_value = mock_result
 
         service = RulesService(mock_session)
-        rules = await service.get_enabled_rules()
+        rules = await service.get_enabled_rules(account_id)
 
         assert len(rules) == 2
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_rule(self) -> None:
-        """Should create a new category rule."""
+        """Should create a new category rule for an account."""
         from app.services.rules import RulesService
+        from uuid import uuid4
 
+        account_id = str(uuid4())
         mock_session = AsyncMock()
 
         service = RulesService(mock_session)
         rule = await service.create_rule(
+            account_id=account_id,
             name="Tesco Rule",
             merchant_pattern="Tesco",
             target_category="Groceries",
@@ -349,6 +355,7 @@ class TestRulesService:
         assert rule.target_category == "Groceries"
         assert rule.priority == 50
         assert rule.conditions["merchant_pattern"] == "Tesco"
+        assert rule.account_id == account_id
 
     @pytest.mark.asyncio
     async def test_update_rule(self) -> None:

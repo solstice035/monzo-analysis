@@ -27,21 +27,22 @@ def client():
 class TestLoginEndpoint:
     """Tests for the /auth/login endpoint."""
 
-    def test_login_redirects_to_monzo(self, client: TestClient) -> None:
-        """Login should redirect to Monzo OAuth authorization URL."""
-        response = client.get("/auth/login", follow_redirects=False)
+    def test_login_returns_monzo_url(self, client: TestClient) -> None:
+        """Login should return Monzo OAuth authorization URL in JSON response."""
+        response = client.get("/auth/login")
 
-        assert response.status_code == 307
-        location = response.headers.get("location")
-        assert location is not None
-        assert location.startswith("https://auth.monzo.com/")
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        assert data["url"].startswith("https://auth.monzo.com/")
 
     def test_login_includes_required_oauth_params(self, client: TestClient) -> None:
-        """Login redirect should include required OAuth parameters."""
-        response = client.get("/auth/login", follow_redirects=False)
+        """Login URL should include required OAuth parameters."""
+        response = client.get("/auth/login")
 
-        location = response.headers.get("location")
-        parsed = urlparse(location)
+        data = response.json()
+        url = data["url"]
+        parsed = urlparse(url)
         params = parse_qs(parsed.query)
 
         assert "client_id" in params
@@ -50,11 +51,12 @@ class TestLoginEndpoint:
         assert params["response_type"][0] == "code"
 
     def test_login_includes_state_parameter(self, client: TestClient) -> None:
-        """Login redirect should include state parameter for CSRF protection."""
-        response = client.get("/auth/login", follow_redirects=False)
+        """Login URL should include state parameter for CSRF protection."""
+        response = client.get("/auth/login")
 
-        location = response.headers.get("location")
-        parsed = urlparse(location)
+        data = response.json()
+        url = data["url"]
+        parsed = urlparse(url)
         params = parse_qs(parsed.query)
 
         assert "state" in params

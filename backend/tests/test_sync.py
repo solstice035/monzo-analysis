@@ -166,53 +166,76 @@ class TestSyncService:
         """Sync should create a sync log entry."""
         from app.services.sync import SyncService
 
-        service = SyncService()
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        # Create mock auth with valid (non-expired) token
+        mock_auth_obj = MagicMock(
+            access_token="test_token",
+            expires_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+        )
 
         with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
-            mock_auth.return_value = MagicMock(access_token="test_token")
+            mock_auth.return_value = mock_auth_obj
 
-            with patch.object(service, "_sync_accounts", new_callable=AsyncMock):
-                with patch.object(service, "_sync_transactions", new_callable=AsyncMock) as mock_sync_tx:
+            with patch.object(service, "_sync_accounts", new_callable=AsyncMock) as mock_sync_acc:
+                mock_sync_acc.return_value = [MagicMock(id="acc_123", monzo_id="acc_123")]
+
+                with patch.object(service, "_sync_account_transactions", new_callable=AsyncMock) as mock_sync_tx:
                     mock_sync_tx.return_value = 5
 
-                    with patch.object(service, "_create_sync_log", new_callable=AsyncMock) as mock_log:
-                        with patch.object(service, "_update_sync_log", new_callable=AsyncMock):
-                            await service.run_sync()
+                    with patch.object(service, "_sync_pots", new_callable=AsyncMock):
+                        with patch.object(service, "_create_sync_log", new_callable=AsyncMock) as mock_log:
+                            with patch.object(service, "_update_sync_log", new_callable=AsyncMock):
+                                await service.run_sync()
 
-                            mock_log.assert_called_once()
+                                mock_log.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sync_updates_log_on_completion(self) -> None:
         """Sync should update log with transaction count on success."""
         from app.services.sync import SyncService
 
-        service = SyncService()
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        # Create mock auth with valid (non-expired) token
+        mock_auth_obj = MagicMock(
+            access_token="test_token",
+            expires_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+        )
 
         with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
-            mock_auth.return_value = MagicMock(access_token="test_token")
+            mock_auth.return_value = mock_auth_obj
 
-            with patch.object(service, "_sync_accounts", new_callable=AsyncMock):
-                with patch.object(service, "_sync_transactions", new_callable=AsyncMock) as mock_sync_tx:
+            with patch.object(service, "_sync_accounts", new_callable=AsyncMock) as mock_sync_acc:
+                mock_sync_acc.return_value = [MagicMock(id="acc_123", monzo_id="acc_123")]
+
+                with patch.object(service, "_sync_account_transactions", new_callable=AsyncMock) as mock_sync_tx:
                     mock_sync_tx.return_value = 10
 
-                    with patch.object(service, "_create_sync_log", new_callable=AsyncMock) as mock_create:
-                        mock_create.return_value = MagicMock(id="log_123")
+                    with patch.object(service, "_sync_pots", new_callable=AsyncMock):
+                        with patch.object(service, "_create_sync_log", new_callable=AsyncMock) as mock_create:
+                            mock_create.return_value = MagicMock(id="log_123")
 
-                        with patch.object(service, "_update_sync_log", new_callable=AsyncMock) as mock_update:
-                            await service.run_sync()
+                            with patch.object(service, "_update_sync_log", new_callable=AsyncMock) as mock_update:
+                                await service.run_sync()
 
-                            # Verify update was called with success status
-                            mock_update.assert_called()
-                            call_args = mock_update.call_args
-                            assert call_args.kwargs.get("status") == "success"
-                            assert call_args.kwargs.get("transactions_synced") == 10
+                                # Verify update was called with success status
+                                # _update_sync_log(sync_log, status, transactions_synced)
+                                mock_update.assert_called()
+                                call_args = mock_update.call_args
+                                # Positional args: (sync_log, "success", 10)
+                                assert call_args.args[1] == "success"
+                                assert call_args.args[2] == 10
 
     @pytest.mark.asyncio
     async def test_sync_handles_no_auth(self) -> None:
         """Sync should raise error when not authenticated."""
         from app.services.sync import SyncService, SyncError
 
-        service = SyncService()
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
 
         with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
             mock_auth.return_value = None
@@ -225,10 +248,17 @@ class TestSyncService:
         """Sync should update log with error on failure."""
         from app.services.sync import SyncService
 
-        service = SyncService()
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        # Create mock auth with valid (non-expired) token
+        mock_auth_obj = MagicMock(
+            access_token="test_token",
+            expires_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+        )
 
         with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
-            mock_auth.return_value = MagicMock(access_token="test_token")
+            mock_auth.return_value = mock_auth_obj
 
             with patch.object(service, "_sync_accounts", new_callable=AsyncMock) as mock_sync_acc:
                 mock_sync_acc.side_effect = Exception("API Error")
@@ -243,9 +273,11 @@ class TestSyncService:
                             pass
 
                         # Verify update was called with failed status
+                        # _update_sync_log(sync_log, status, transactions_synced=0, error=str)
                         mock_update.assert_called()
                         call_args = mock_update.call_args
-                        assert call_args.kwargs.get("status") == "failed"
+                        # Positional args: (sync_log, "failed")
+                        assert call_args.args[1] == "failed"
 
 
 class TestTransactionUpsert:
