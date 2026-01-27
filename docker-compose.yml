@@ -3,6 +3,7 @@
 
 services:
   # PostgreSQL Database
+  # NOTE: No ports exposed - only accessible via Docker internal network
   postgres:
     image: postgres:16-alpine
     container_name: monzo-db
@@ -13,8 +14,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-monzo_analysis}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monzo} -d ${POSTGRES_DB:-monzo_analysis}"]
       interval: 10s
@@ -22,6 +21,7 @@ services:
       retries: 5
 
   # Redis Cache (for session storage and rate limiting)
+  # NOTE: No ports exposed - only accessible via Docker internal network
   redis:
     image: redis:7-alpine
     container_name: monzo-redis
@@ -29,8 +29,6 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
