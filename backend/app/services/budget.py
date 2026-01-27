@@ -79,6 +79,29 @@ class BudgetStatus:
     period_end: date
 
 
+@dataclass
+class SinkingFundStatus:
+    """Status of a sinking fund budget.
+
+    Sinking funds track contributions toward an annual target,
+    optionally backed by a Monzo Pot for balance tracking.
+    """
+
+    budget_id: Any
+    name: str | None
+    category: str
+    target_amount: int  # Total annual target in pence
+    monthly_contribution: int  # Expected monthly contribution
+    contributions_to_date: int  # Actual contributions so far
+    expected_to_date: int  # Expected contributions by now
+    variance: int  # contributions_to_date - expected_to_date
+    on_track: bool  # Is the fund on track?
+    target_month: int | None  # Month target is due (1-12)
+    months_remaining: int  # Months until target date
+    pot_balance: int | None  # Current pot balance (if linked)
+    projected_balance: int  # Expected balance at target date
+
+
 class BudgetService:
     """Service for managing budgets and tracking spend."""
 
@@ -111,15 +134,27 @@ class BudgetService:
         amount: int,
         period: str = "monthly",
         start_day: int = 1,
+        name: str | None = None,
+        group_id: str | None = None,
+        period_type: str = "monthly",
+        annual_amount: int | None = None,
+        target_month: int | None = None,
+        linked_pot_id: str | None = None,
     ) -> Budget:
         """Create a new budget for an account.
 
         Args:
             account_id: Account ID to associate the budget with
             category: Category name to track
-            amount: Budget amount in pence
+            amount: Budget amount in pence (monthly contribution for sinking funds)
             period: Period type ("monthly" or "weekly")
             start_day: Day of month budget resets
+            name: Optional display name (e.g., "Elodie Piano")
+            group_id: Budget group ID (required for grouped budgets)
+            period_type: "weekly", "monthly", "quarterly", "annual", "bi-annual"
+            annual_amount: Total annual target for sinking funds (in pence)
+            target_month: Month when annual expense is due (1-12)
+            linked_pot_id: Monzo Pot ID for pot-backed budgets
 
         Returns:
             Created budget
@@ -131,6 +166,12 @@ class BudgetService:
             amount=amount,
             period=period,
             start_day=start_day,
+            name=name,
+            group_id=group_id,
+            period_type=period_type,
+            annual_amount=annual_amount,
+            target_month=target_month,
+            linked_pot_id=linked_pot_id,
         )
         self._session.add(budget)
         return budget
@@ -142,12 +183,27 @@ class BudgetService:
         amount: int | None = None,
         period: str | None = None,
         start_day: int | None = None,
+        name: str | None = None,
+        group_id: str | None = None,
+        period_type: str | None = None,
+        annual_amount: int | None = None,
+        target_month: int | None = None,
+        linked_pot_id: str | None = None,
     ) -> Budget | None:
         """Update an existing budget.
 
         Args:
             budget_id: ID of budget to update
-            **kwargs: Fields to update
+            category: Category name to track
+            amount: Budget amount in pence
+            period: Period type ("monthly" or "weekly")
+            start_day: Day of month budget resets
+            name: Display name
+            group_id: Budget group ID
+            period_type: "weekly", "monthly", "quarterly", "annual", "bi-annual"
+            annual_amount: Total annual target for sinking funds
+            target_month: Month when annual expense is due (1-12)
+            linked_pot_id: Monzo Pot ID for pot-backed budgets
 
         Returns:
             Updated budget or None if not found
@@ -168,6 +224,18 @@ class BudgetService:
             budget.period = period
         if start_day is not None:
             budget.start_day = start_day
+        if name is not None:
+            budget.name = name
+        if group_id is not None:
+            budget.group_id = group_id
+        if period_type is not None:
+            budget.period_type = period_type
+        if annual_amount is not None:
+            budget.annual_amount = annual_amount
+        if target_month is not None:
+            budget.target_month = target_month
+        if linked_pot_id is not None:
+            budget.linked_pot_id = linked_pot_id
 
         return budget
 
@@ -371,3 +439,110 @@ class BudgetService:
             )
 
         return statuses
+
+    async def get_sinking_fund_status(
+        self,
+        budget: Budget,
+        reference_date: date,
+        pot_balance: int | None = None,
+    ) -> SinkingFundStatus:
+        """Get the status of a sinking fund budget.
+
+        Sinking funds track monthly contributions toward an annual target.
+        Unlike spending budgets, they track deposits to a pot, not spending.
+
+        Args:
+            budget: Budget to check (must be a sinking fund)
+            reference_date: Reference date for calculations
+            pot_balance: Current pot balance (fetched from Monzo API)
+
+        Returns:
+            SinkingFundStatus with contribution progress
+        """
+        if not budget.is_sinking_fund:
+            raise ValueError("Budget is not a sinking fund")
+
+        # Calculate months since the start of the year (or since target_month of previous year)
+        target_month = budget.target_month or 12  # Default to December
+
+        # Determine the contribution period start
+        # If we're past the target month, we're contributing for next year
+        current_year = reference_date.year
+        current_month = reference_date.month
+
+        if current_month >= target_month:
+            # Contributing for next year's target
+            period_start_year = current_year
+            target_year = current_year + 1
+        else:
+            # Contributing for this year's target
+            period_start_year = current_year - 1
+            target_year = current_year
+
+        # Months elapsed in the contribution period
+        months_elapsed = (reference_date.year - period_start_year) * 12 + reference_date.month - target_month
+        if months_elapsed < 0:
+            months_elapsed += 12
+        months_elapsed = max(1, min(months_elapsed, 12))  # Clamp to 1-12
+
+        # Months remaining until target
+        months_remaining = max(0, 12 - months_elapsed)
+
+        # Monthly contribution target
+        monthly_contribution = budget.monthly_contribution
+
+        # Expected contributions to date
+        expected_to_date = monthly_contribution * months_elapsed
+
+        # Actual contributions - use pot balance if available, otherwise estimate
+        # In Phase 2, we'll track actual pot deposits. For now, use pot balance.
+        contributions_to_date = pot_balance if pot_balance is not None else 0
+
+        # Variance (positive = ahead, negative = behind)
+        variance = contributions_to_date - expected_to_date
+
+        # On track if contributions >= expected
+        on_track = contributions_to_date >= expected_to_date
+
+        # Projected balance at target date
+        # If on track, assume current rate continues
+        if months_remaining > 0 and months_elapsed > 0:
+            monthly_rate = contributions_to_date / months_elapsed
+            projected_balance = contributions_to_date + int(monthly_rate * months_remaining)
+        else:
+            projected_balance = contributions_to_date
+
+        return SinkingFundStatus(
+            budget_id=budget.id,
+            name=budget.name,
+            category=budget.category,
+            target_amount=budget.annual_amount or 0,
+            monthly_contribution=monthly_contribution,
+            contributions_to_date=contributions_to_date,
+            expected_to_date=expected_to_date,
+            variance=variance,
+            on_track=on_track,
+            target_month=target_month,
+            months_remaining=months_remaining,
+            pot_balance=pot_balance,
+            projected_balance=projected_balance,
+        )
+
+    async def get_all_sinking_funds(self, account_id: str) -> list[Budget]:
+        """Get all sinking fund budgets for an account.
+
+        Args:
+            account_id: Account ID to filter budgets
+
+        Returns:
+            List of sinking fund budgets
+        """
+        result = await self._session.execute(
+            select(Budget).where(
+                and_(
+                    Budget.account_id == account_id,
+                    Budget.period_type.in_(["quarterly", "annual", "bi-annual"]),
+                )
+            )
+        )
+        return list(result.scalars().all())

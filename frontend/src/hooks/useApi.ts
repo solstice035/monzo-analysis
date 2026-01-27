@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Budget, type CategoryRule } from '@/lib/api';
+import { api, type Budget, type CategoryRule, type BudgetGroup } from '@/lib/api';
 import { useAccount } from '@/contexts/AccountContext';
 
 // Query keys - now include accountId for account-scoped data
@@ -10,6 +10,10 @@ export const queryKeys = {
     ['transactions', accountId, params] as const,
   budgets: (accountId: string) => ['budgets', accountId] as const,
   budgetStatuses: (accountId: string) => ['budgetStatuses', accountId] as const,
+  budgetGroups: (accountId: string) => ['budgetGroups', accountId] as const,
+  budgetGroupStatuses: (accountId: string) => ['budgetGroupStatuses', accountId] as const,
+  sinkingFundsStatus: (accountId: string) => ['sinkingFundsStatus', accountId] as const,
+  pots: (accountId: string) => ['pots', accountId] as const,
   rules: (accountId: string) => ['rules', accountId] as const,
   syncStatus: ['syncStatus'] as const,
   dashboardSummary: (accountId: string) => ['dashboardSummary', accountId] as const,
@@ -136,6 +140,91 @@ export function useImportBudgets() {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] });
     },
+  });
+}
+
+// Budget Group hooks
+export function useBudgetGroups() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.budgetGroups(accountId),
+    queryFn: () => api.getBudgetGroups(accountId),
+    enabled: !!accountId,
+  });
+}
+
+export function useBudgetGroupStatuses() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.budgetGroupStatuses(accountId),
+    queryFn: () => api.getBudgetGroupStatuses(accountId),
+    enabled: !!accountId,
+  });
+}
+
+export function useCreateBudgetGroup() {
+  const queryClient = useQueryClient();
+  const { selectedAccount } = useAccount();
+
+  return useMutation({
+    mutationFn: (data: { name: string; icon?: string }) =>
+      api.createBudgetGroup({ ...data, account_id: selectedAccount?.id || '' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgetGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroupStatuses'] });
+    },
+  });
+}
+
+export function useUpdateBudgetGroup() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<BudgetGroup> }) =>
+      api.updateBudgetGroup(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgetGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroupStatuses'] });
+    },
+  });
+}
+
+export function useDeleteBudgetGroup() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.deleteBudgetGroup(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgetGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroupStatuses'] });
+    },
+  });
+}
+
+// Pots and Sinking Funds hooks
+export function usePots() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.pots(accountId),
+    queryFn: () => api.getPots(accountId),
+    enabled: !!accountId,
+  });
+}
+
+export function useSinkingFundsStatus() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.sinkingFundsStatus(accountId),
+    queryFn: () => api.getSinkingFundsStatus(accountId),
+    enabled: !!accountId,
   });
 }
 

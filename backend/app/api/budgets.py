@@ -23,6 +23,15 @@ class BudgetResponse(BaseModel):
     amount: int
     period: Literal["monthly", "weekly"]
     start_day: int
+    # Sinking fund fields
+    name: str | None = None
+    group_id: str | None = None
+    period_type: str = "monthly"
+    annual_amount: int | None = None
+    target_month: int | None = None
+    linked_pot_id: str | None = None
+    is_sinking_fund: bool = False
+    monthly_contribution: int = 0
 
 
 class BudgetCreate(BaseModel):
@@ -33,6 +42,13 @@ class BudgetCreate(BaseModel):
     amount: int
     period: Literal["monthly", "weekly"] = "monthly"
     start_day: int = 1
+    # Sinking fund fields
+    name: str | None = None
+    group_id: str | None = None
+    period_type: str = "monthly"
+    annual_amount: int | None = None
+    target_month: int | None = None
+    linked_pot_id: str | None = None
 
 
 class BudgetUpdate(BaseModel):
@@ -42,6 +58,13 @@ class BudgetUpdate(BaseModel):
     amount: int | None = None
     period: Literal["monthly", "weekly"] | None = None
     start_day: int | None = None
+    # Sinking fund fields
+    name: str | None = None
+    group_id: str | None = None
+    period_type: str | None = None
+    annual_amount: int | None = None
+    target_month: int | None = None
+    linked_pot_id: str | None = None
 
 
 class BudgetStatusResponse(BaseModel):
@@ -74,6 +97,14 @@ async def get_budgets(
                 "amount": b.amount,
                 "period": b.period,
                 "start_day": b.start_day,
+                "name": b.name,
+                "group_id": str(b.group_id) if b.group_id else None,
+                "period_type": b.period_type or "monthly",
+                "annual_amount": b.annual_amount,
+                "target_month": b.target_month,
+                "linked_pot_id": b.linked_pot_id,
+                "is_sinking_fund": b.is_sinking_fund,
+                "monthly_contribution": b.monthly_contribution,
             }
             for b in budgets
         ]
@@ -90,6 +121,12 @@ async def create_budget(data: BudgetCreate) -> dict[str, Any]:
             amount=data.amount,
             period=data.period,
             start_day=data.start_day,
+            name=data.name,
+            group_id=data.group_id,
+            period_type=data.period_type,
+            annual_amount=data.annual_amount,
+            target_month=data.target_month,
+            linked_pot_id=data.linked_pot_id,
         )
         return {
             "id": str(budget.id),
@@ -98,6 +135,14 @@ async def create_budget(data: BudgetCreate) -> dict[str, Any]:
             "amount": budget.amount,
             "period": budget.period,
             "start_day": budget.start_day,
+            "name": budget.name,
+            "group_id": str(budget.group_id) if budget.group_id else None,
+            "period_type": budget.period_type or "monthly",
+            "annual_amount": budget.annual_amount,
+            "target_month": budget.target_month,
+            "linked_pot_id": budget.linked_pot_id,
+            "is_sinking_fund": budget.is_sinking_fund,
+            "monthly_contribution": budget.monthly_contribution,
         }
 
 
@@ -112,6 +157,12 @@ async def update_budget(budget_id: str, data: BudgetUpdate) -> dict[str, Any]:
             amount=data.amount,
             period=data.period,
             start_day=data.start_day,
+            name=data.name,
+            group_id=data.group_id,
+            period_type=data.period_type,
+            annual_amount=data.annual_amount,
+            target_month=data.target_month,
+            linked_pot_id=data.linked_pot_id,
         )
         if not budget:
             raise HTTPException(status_code=404, detail="Budget not found")
@@ -122,6 +173,14 @@ async def update_budget(budget_id: str, data: BudgetUpdate) -> dict[str, Any]:
             "amount": budget.amount,
             "period": budget.period,
             "start_day": budget.start_day,
+            "name": budget.name,
+            "group_id": str(budget.group_id) if budget.group_id else None,
+            "period_type": budget.period_type or "monthly",
+            "annual_amount": budget.annual_amount,
+            "target_month": budget.target_month,
+            "linked_pot_id": budget.linked_pot_id,
+            "is_sinking_fund": budget.is_sinking_fund,
+            "monthly_contribution": budget.monthly_contribution,
         }
 
 

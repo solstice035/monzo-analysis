@@ -82,6 +82,62 @@ export interface Budget {
   amount: number;
   period: 'monthly' | 'weekly';
   start_day: number;
+  // Sinking fund fields
+  name?: string;
+  group_id?: string;
+  period_type?: string;
+  annual_amount?: number;
+  target_month?: number;
+  linked_pot_id?: string;
+  is_sinking_fund?: boolean;
+  monthly_contribution?: number;
+}
+
+export interface BudgetGroup {
+  id: string;
+  account_id: string;
+  name: string;
+  icon?: string;
+  display_order: number;
+}
+
+export interface BudgetGroupStatus {
+  group_id: string;
+  name: string;
+  icon?: string;
+  total_budget: number;
+  total_spent: number;
+  remaining: number;
+  percentage: number;
+  status: 'under' | 'warning' | 'over';
+  budget_count: number;
+  budgets: BudgetStatus[];
+}
+
+export interface Pot {
+  id: string;
+  monzo_id: string;
+  name: string;
+  balance: number;
+  deleted: boolean;
+}
+
+export interface SinkingFundStatus {
+  budget_id: string;
+  budget_name?: string;
+  category: string;
+  pot_id?: string;
+  pot_name?: string;
+  pot_balance?: number;
+  target_amount: number;
+  monthly_contribution: number;
+  contributions_this_period: number;
+  expected_contributions: number;
+  variance: number;
+  on_track: boolean;
+  target_month?: number;
+  months_remaining: number;
+  projected_balance: number;
 }
 
 export interface BudgetStatus {
@@ -190,6 +246,30 @@ export const api = {
 
     return response.json() as Promise<{ imported: number; skipped: number; errors: string[] }>;
   },
+
+  // Budget Groups
+  getBudgetGroups: (accountId: string) =>
+    apiRequest<BudgetGroup[]>(`/api/v1/budget-groups?account_id=${accountId}`),
+  getBudgetGroupStatuses: (accountId: string) =>
+    apiRequest<BudgetGroupStatus[]>(`/api/v1/budget-groups/status?account_id=${accountId}`),
+  createBudgetGroup: (data: { account_id: string; name: string; icon?: string }) =>
+    apiRequest<BudgetGroup>('/api/v1/budget-groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateBudgetGroup: (id: string, data: Partial<BudgetGroup>) =>
+    apiRequest<BudgetGroup>(`/api/v1/budget-groups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteBudgetGroup: (id: string) =>
+    apiRequest<void>(`/api/v1/budget-groups/${id}`, { method: 'DELETE' }),
+
+  // Pots
+  getPots: (accountId: string) =>
+    apiRequest<Pot[]>(`/api/v1/pots?account_id=${accountId}`),
+  getSinkingFundsStatus: (accountId: string) =>
+    apiRequest<SinkingFundStatus[]>(`/api/v1/pots/sinking-funds/status?account_id=${accountId}`),
 
   // Rules
   getRules: (accountId: string) =>

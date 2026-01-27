@@ -12,6 +12,7 @@ from app.models import (
     Auth,
     Base,
     Budget,
+    BudgetGroup,
     CategoryRule,
     Pot,
     Setting,
@@ -171,7 +172,12 @@ class TestBudgetModel:
 
     def test_budget_creation(self, session: Session) -> None:
         """Budget can be created with required fields."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
         budget = Budget(
+            account_id=account.id,
             category="groceries",
             amount=40000,  # £400.00
             period="monthly",
@@ -185,10 +191,16 @@ class TestBudgetModel:
         assert result.amount == 40000
         assert result.period == "monthly"
         assert result.start_day == 1
+        assert result.account_id == account.id
 
     def test_budget_weekly_period(self, session: Session) -> None:
         """Budget can have weekly period."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
         budget = Budget(
+            account_id=account.id,
             category="eating_out",
             amount=5000,  # £50.00
             period="weekly",
@@ -199,13 +211,105 @@ class TestBudgetModel:
         result = session.execute(select(Budget)).scalar_one()
         assert result.period == "weekly"
 
+    def test_budget_with_sinking_fund_fields(self, session: Session) -> None:
+        """Budget can have sinking fund configuration."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
+        budget = Budget(
+            account_id=account.id,
+            name="Car Tax",
+            category="car",
+            amount=5625,  # £56.25 monthly contribution
+            period="monthly",
+            period_type="annual",
+            annual_amount=67500,  # £675 annual
+            target_month=10,  # October
+        )
+        session.add(budget)
+        session.commit()
+
+        result = session.execute(select(Budget)).scalar_one()
+        assert result.name == "Car Tax"
+        assert result.period_type == "annual"
+        assert result.annual_amount == 67500
+        assert result.target_month == 10
+        assert result.is_sinking_fund is True
+        assert result.monthly_contribution == 5625  # 67500 // 12
+
+
+class TestBudgetGroupModel:
+    """Tests for the BudgetGroup model."""
+
+    def test_budget_group_creation(self, session: Session) -> None:
+        """BudgetGroup can be created with required fields."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
+        group = BudgetGroup(
+            account_id=account.id,
+            name="Kids",
+            icon="child",
+            display_order=1,
+        )
+        session.add(group)
+        session.commit()
+
+        result = session.execute(select(BudgetGroup)).scalar_one()
+        assert result.name == "Kids"
+        assert result.icon == "child"
+        assert result.display_order == 1
+        assert result.account_id == account.id
+
+    def test_budget_group_with_budgets(self, session: Session) -> None:
+        """BudgetGroup can contain multiple budgets."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
+        group = BudgetGroup(
+            account_id=account.id,
+            name="Kids",
+        )
+        session.add(group)
+        session.commit()
+
+        budget1 = Budget(
+            account_id=account.id,
+            group_id=group.id,
+            name="Piano Lessons",
+            category="kids",
+            amount=8000,
+            period="monthly",
+        )
+        budget2 = Budget(
+            account_id=account.id,
+            group_id=group.id,
+            name="Swimming",
+            category="kids",
+            amount=5000,
+            period="monthly",
+        )
+        session.add_all([budget1, budget2])
+        session.commit()
+
+        result = session.execute(select(BudgetGroup)).scalar_one()
+        assert len(result.budgets) == 2
+
 
 class TestCategoryRuleModel:
     """Tests for the CategoryRule model."""
 
     def test_rule_creation(self, session: Session) -> None:
         """CategoryRule can be created with conditions."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
         rule = CategoryRule(
+            account_id=account.id,
             name="Big Shop",
             conditions={"merchant_contains": "Tesco", "amount_gt": 8000},
             target_category="groceries-big-shop",
@@ -221,10 +325,16 @@ class TestCategoryRuleModel:
         assert result.target_category == "groceries-big-shop"
         assert result.priority == 10
         assert result.enabled is True
+        assert result.account_id == account.id
 
     def test_rule_can_be_disabled(self, session: Session) -> None:
         """CategoryRule can be disabled."""
+        account = Account(monzo_id="acc_12345", type="uk_retail")
+        session.add(account)
+        session.commit()
+
         rule = CategoryRule(
+            account_id=account.id,
             name="Test Rule",
             conditions={},
             target_category="test",

@@ -205,32 +205,36 @@ class TestBudgetServiceCRUD:
 
     @pytest.mark.asyncio
     async def test_get_all_budgets(self) -> None:
-        """Should fetch all active budgets."""
+        """Should fetch all active budgets for an account."""
         from app.services.budget import BudgetService
+
+        account_id = str(uuid4())
 
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [
-            MagicMock(category="Groceries"),
-            MagicMock(category="Transport"),
+            MagicMock(category="Groceries", account_id=account_id),
+            MagicMock(category="Transport", account_id=account_id),
         ]
         mock_session.execute.return_value = mock_result
 
         service = BudgetService(mock_session)
-        budgets = await service.get_all_budgets()
+        budgets = await service.get_all_budgets(account_id)
 
         assert len(budgets) == 2
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_budget(self) -> None:
-        """Should create a new budget."""
+        """Should create a new budget for an account."""
         from app.services.budget import BudgetService
 
+        account_id = str(uuid4())
         mock_session = AsyncMock()
 
         service = BudgetService(mock_session)
         budget = await service.create_budget(
+            account_id=account_id,
             category="Groceries",
             amount=30000,
             period="monthly",
@@ -240,6 +244,7 @@ class TestBudgetServiceCRUD:
         mock_session.add.assert_called_once()
         assert budget.category == "Groceries"
         assert budget.amount == 30000
+        assert budget.account_id == account_id
 
     @pytest.mark.asyncio
     async def test_update_budget(self) -> None:
@@ -285,6 +290,121 @@ class TestBudgetServiceCRUD:
         mock_session.delete.assert_called_once_with(existing_budget)
 
 
+class TestSinkingFundStatus:
+    """Tests for sinking fund status calculation."""
+
+    @pytest.mark.asyncio
+    async def test_get_sinking_fund_status_on_track(self) -> None:
+        """Should return on_track=True when contributions meet expected."""
+        from app.services.budget import BudgetService, SinkingFundStatus
+
+        budget = MagicMock()
+        budget.id = uuid4()
+        budget.name = "Car Tax"
+        budget.category = "car"
+        budget.amount = 5625  # Monthly contribution
+        budget.period_type = "annual"
+        budget.annual_amount = 67500  # £675 total
+        budget.target_month = 10  # Due in October
+        budget.is_sinking_fund = True
+        budget.monthly_contribution = 5625
+
+        mock_session = AsyncMock()
+        service = BudgetService(mock_session)
+
+        # Reference date: April 15 (6 months into contribution period)
+        # Target is October, so period started in October previous year
+        # By April, 6 months have passed
+        status = await service.get_sinking_fund_status(
+            budget,
+            date(2025, 4, 15),
+            pot_balance=34000,  # £340 saved (slightly ahead of £337.50 expected)
+        )
+
+        assert isinstance(status, SinkingFundStatus)
+        assert status.name == "Car Tax"
+        assert status.target_amount == 67500
+        assert status.monthly_contribution == 5625
+        assert status.pot_balance == 34000
+        assert status.on_track is True
+
+    @pytest.mark.asyncio
+    async def test_get_sinking_fund_status_behind(self) -> None:
+        """Should return on_track=False when behind target."""
+        from app.services.budget import BudgetService
+
+        budget = MagicMock()
+        budget.id = uuid4()
+        budget.name = "Insurance"
+        budget.category = "insurance"
+        budget.amount = 5000  # Monthly contribution
+        budget.period_type = "annual"
+        budget.annual_amount = 60000  # £600 total
+        budget.target_month = 6  # Due in June
+        budget.is_sinking_fund = True
+        budget.monthly_contribution = 5000
+
+        mock_session = AsyncMock()
+        service = BudgetService(mock_session)
+
+        # March = 9 months into period (from June previous year)
+        # Expected: 9 * £50 = £450, Actual: £300
+        status = await service.get_sinking_fund_status(
+            budget,
+            date(2025, 3, 15),
+            pot_balance=30000,  # Only £300 saved
+        )
+
+        assert status.on_track is False
+        assert status.variance < 0  # Behind target
+
+    @pytest.mark.asyncio
+    async def test_get_sinking_fund_status_raises_for_non_sinking_fund(self) -> None:
+        """Should raise error for non-sinking-fund budgets."""
+        from app.services.budget import BudgetService
+
+        budget = MagicMock()
+        budget.is_sinking_fund = False
+
+        mock_session = AsyncMock()
+        service = BudgetService(mock_session)
+
+        with pytest.raises(ValueError, match="not a sinking fund"):
+            await service.get_sinking_fund_status(budget, date(2025, 1, 15))
+
+    @pytest.mark.asyncio
+    async def test_create_budget_with_sinking_fund_fields(self) -> None:
+        """Should create budget with all sinking fund fields."""
+        from app.services.budget import BudgetService
+
+        account_id = str(uuid4())
+        group_id = str(uuid4())
+        mock_session = AsyncMock()
+
+        service = BudgetService(mock_session)
+        budget = await service.create_budget(
+            account_id=account_id,
+            category="car",
+            amount=5625,
+            period="monthly",
+            start_day=1,
+            name="Car Tax",
+            group_id=group_id,
+            period_type="annual",
+            annual_amount=67500,
+            target_month=10,
+            linked_pot_id="pot_123",
+        )
+
+        mock_session.add.assert_called_once()
+        assert budget.name == "Car Tax"
+        assert budget.group_id == group_id
+        assert budget.period_type == "annual"
+        assert budget.annual_amount == 67500
+        assert budget.target_month == 10
+        assert budget.linked_pot_id == "pot_123"
+
+
 class TestBudgetSummary:
     """Tests for budget summary generation."""
 
@@ -294,11 +414,13 @@ class TestBudgetSummary:
         from app.services.budget import BudgetService
         from datetime import datetime
 
+        account_id = str(uuid4())
         budget1_id = uuid4()
         budget2_id = uuid4()
 
         budget1 = MagicMock()
         budget1.id = budget1_id
+        budget1.account_id = account_id
         budget1.category = "Groceries"
         budget1.amount = 30000
         budget1.period = "monthly"
@@ -306,6 +428,7 @@ class TestBudgetSummary:
 
         budget2 = MagicMock()
         budget2.id = budget2_id
+        budget2.account_id = account_id
         budget2.category = "Transport"
         budget2.amount = 10000
         budget2.period = "monthly"
@@ -335,7 +458,7 @@ class TestBudgetSummary:
 
         service = BudgetService(mock_session)
 
-        statuses = await service.get_all_budget_statuses(date(2025, 1, 15))
+        statuses = await service.get_all_budget_statuses(account_id, date(2025, 1, 15))
 
         assert len(statuses) == 2
         assert statuses[0].spent == 15000

@@ -39,6 +39,8 @@ See TRD for architecture, data model, API design, and implementation approach.
 | Recurring detection | Interval analysis | Detect subscriptions by merchant + timing |
 | Dashboard charts | Recharts AreaChart | 30-day spending trend visualization |
 | Multi-account | Global account selector | Separate budgets/rules per account, default to joint |
+| Budget hierarchy | Groups + line items | Roll-up totals per group, matches spreadsheet structure |
+| Sinking funds | Monthly contributions | Track progress toward annual targets with pot linking |
 
 ---
 
@@ -115,6 +117,11 @@ Reference docs in [docs/api-reference/](docs/api-reference/)
 | `GET /api/v1/dashboard/summary` | Dashboard stats | Requires `account_id` param |
 | `GET /api/v1/dashboard/trends` | Spending trends | Requires `account_id` param |
 | `GET /api/v1/dashboard/recurring` | Recurring payments | Requires `account_id` param |
+| `GET /api/v1/budget-groups` | List budget groups | Requires `account_id` param |
+| `POST /api/v1/budget-groups` | Create budget group | Requires `account_id` in body |
+| `GET /api/v1/budget-groups/{id}` | Get group with status | Includes roll-up totals |
+| `PUT /api/v1/budget-groups/{id}` | Update budget group | Name, icon, display_order |
+| `DELETE /api/v1/budget-groups/{id}` | Delete budget group | Cascades to budgets |
 
 ### Transaction Payload (FR-02)
 
@@ -161,6 +168,30 @@ Store training data for future ML layer:
 - Transaction features (merchant, amount, time, etc.)
 
 Architecture should support swappable classification backend.
+
+### Budget Hierarchy
+
+Three-level budget organization matching the user's spreadsheet structure:
+
+```
+Account
+└── BudgetGroup (e.g., "Kids", "Fixed Bills", "Car Expenses")
+    └── Budget (line item, e.g., "Piano Lessons", "Car Tax")
+```
+
+**Budget Types:**
+- **Spending budget** (`period_type` = weekly/monthly): "Don't exceed £X this period"
+- **Sinking fund** (`period_type` = quarterly/annual/bi-annual): "Contribute £X/month towards £Y target"
+
+**Sinking Fund Fields:**
+- `annual_amount`: Total target in pence (e.g., £675 car tax = 67500)
+- `target_month`: Month when expense is due (1-12)
+- `linked_pot_id`: Monzo Pot for balance tracking
+
+**Roll-up Calculations:**
+- Group totals = sum of child budget amounts
+- Group spent = sum of child spending
+- Group status = worst status among children (over > warning > under)
 
 ---
 
@@ -312,6 +343,7 @@ curl -X POST -H 'Content-Type: application/json' \
 | Connect Button Fix | ✅ Complete | 2026-01-19 |
 | First Live Sync | ✅ Complete | 2026-01-19 |
 | Multi-Account Support | ✅ Complete | 2026-01-19 |
+| Budget Redesign Phase 1 | ✅ Complete | 2026-01-20 |
 
 ---
 
@@ -379,11 +411,17 @@ Access the app at http://localhost
 | Recurring Detection | Subscription identification | `backend/app/services/recurring.py` |
 | Subscriptions Page | View and manage recurring payments | `frontend/src/pages/subscriptions.tsx` |
 | Multi-Account | Global account selector with per-account data | `frontend/src/contexts/AccountContext.tsx` |
+| Budget Groups | Hierarchical budget organization with roll-ups | `backend/app/services/budget_groups.py` |
+| Sinking Funds | Annual/quarterly budgets with contribution tracking | `backend/app/services/budget.py` |
 
 ### Known Issues
 
-See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for code review findings:
-- N+1 queries in budget status calculation (performance)
+See [docs/CODE_REVIEW_2026-01-20.md](docs/CODE_REVIEW_2026-01-20.md) for multi-account security review:
+- **CRITICAL:** IDOR vulnerabilities in budget/rule/transaction update/delete endpoints
+- **HIGH:** Migration needs data backfill for existing records
+
+See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for earlier findings:
+- N+1 queries in budget status calculation (performance) - FIXED
 - Silent Slack failures need logging
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
