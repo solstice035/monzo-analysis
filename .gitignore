@@ -5,6 +5,16 @@
 # Environment (additional)
 .env.local
 
+# Private budget data
+docs/budget/
+
+# VS Code workspace (personal)
+*.code-workspace
+
+# Test artifacts
+frontend/test-results/
+test_*.py
+
 # Frontend
 node_modules/
 
