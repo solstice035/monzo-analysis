@@ -1,8 +1,11 @@
 """Slack notification service for budget alerts and summaries."""
 
+import logging
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 def format_currency(amount_pence: int) -> str:
@@ -187,7 +190,8 @@ class SlackService:
                     json={"text": text},
                 )
                 return response.status_code == 200
-        except Exception:
+        except Exception as e:
+            logger.error(f"Slack notification failed: {e}", exc_info=True)
             return False
 
     async def send_blocks(self, blocks: list[dict[str, Any]], text: str = "") -> bool:
@@ -210,7 +214,8 @@ class SlackService:
                     json={"text": text, "blocks": blocks},
                 )
                 return response.status_code == 200
-        except Exception:
+        except Exception as e:
+            logger.error(f"Slack block notification failed: {e}", exc_info=True)
             return False
 
     async def notify_daily_summary(
