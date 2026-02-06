@@ -56,13 +56,36 @@ export function Dashboard() {
     syncMutation.mutate();
   };
 
-  // Get current month and days until reset
+  // Get current month and days until reset (use budget period if available)
   const now = new Date();
   const month = now.toLocaleString("en-GB", { month: "long" }).toUpperCase();
   const year = now.getFullYear();
-  const daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  const daysUntilReset = daysInMonth - dayOfMonth;
+
+  // Derive period info from budget groups (respects custom start_day)
+  const earliestPeriodStart = budgetGroups?.length
+    ? budgetGroups.reduce((min, g) => (g.period_start < min ? g.period_start : min), budgetGroups[0].period_start)
+    : null;
+  const latestPeriodEnd = budgetGroups?.length
+    ? budgetGroups.reduce((max, g) => (g.period_end > max ? g.period_end : max), budgetGroups[0].period_end)
+    : null;
+
+  let dayOfMonth: number;
+  let daysInMonth: number;
+  let daysUntilReset: number;
+
+  if (earliestPeriodStart && latestPeriodEnd) {
+    const periodStart = new Date(earliestPeriodStart);
+    const periodEnd = new Date(latestPeriodEnd);
+    const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    daysInMonth = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000) + 1;
+    dayOfMonth = Math.round((todayMs - periodStart.getTime()) / 86400000) + 1;
+    daysUntilReset = Math.max(0, Math.round((periodEnd.getTime() - todayMs) / 86400000));
+  } else {
+    // Fallback to calendar month when no budgets exist
+    daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+    dayOfMonth = now.getDate();
+    daysUntilReset = daysInMonth - dayOfMonth;
+  }
 
   // Calculate totals from budget groups
   const totalBudget = budgetGroups?.reduce((sum, g) => sum + g.total_budget, 0) || 0;

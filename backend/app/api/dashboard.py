@@ -119,17 +119,17 @@ async def get_dashboard_summary(
             for row in cat_result.all()
         ]
 
-        # Balance is sum of all transactions for this account
-        balance_result = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.account_id == account_id
-            )
+        # Get real balance from account (stored during sync)
+        account_result = await session.execute(
+            select(Account).where(Account.id == account_id)
         )
-        balance = balance_result.scalar() or 0
+        account = account_result.scalar_one_or_none()
+        balance = account.balance if account else 0
+        real_spend_today = abs(account.spend_today) if account else spend_today
 
         return {
             "balance": balance,
-            "spend_today": spend_today,
+            "spend_today": real_spend_today,
             "spend_this_month": spend_this_month,
             "transaction_count": transaction_count,
             "top_categories": top_categories,

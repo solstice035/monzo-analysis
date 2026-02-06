@@ -112,6 +112,8 @@ export interface BudgetGroupStatus {
   status: 'under' | 'warning' | 'over';
   budget_count: number;
   budgets: BudgetStatus[];
+  period_start: string;
+  period_end: string;
 }
 
 export interface Pot {

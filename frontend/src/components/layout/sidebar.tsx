@@ -8,6 +8,7 @@ import {
   Workflow,
   RefreshCw,
 } from "lucide-react";
+import { useSyncStatus } from "@/hooks/useApi";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -18,7 +19,31 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+function formatRelativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function Sidebar() {
+  const { data: syncStatus } = useSyncStatus();
+
+  const lastSyncLabel = syncStatus?.last_sync
+    ? formatRelativeTime(syncStatus.last_sync)
+    : "never";
+
+  const statusColor =
+    syncStatus?.status === "running"
+      ? "text-yellow"
+      : syncStatus?.status === "failed"
+        ? "text-coral"
+        : "text-stone";
+
   return (
     <aside className="w-64 h-screen bg-charcoal border-r border-navy-mid flex flex-col fixed left-0 top-0">
       {/* Logo */}
@@ -68,7 +93,10 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-6 border-t border-navy-mid">
         <div className="text-xs text-slate">
-          Last sync: <span className="text-stone">2 hours ago</span>
+          Last sync: <span className={statusColor}>{lastSyncLabel}</span>
+          {syncStatus?.status === "running" && (
+            <span className="ml-1 animate-pulse">syncing...</span>
+          )}
         </div>
       </div>
     </aside>

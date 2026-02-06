@@ -14,6 +14,7 @@ from app.models import Account, Auth, CategoryRule, Pot, SyncLog, Transaction
 from app.services.monzo import (
     calculate_token_expiry,
     fetch_accounts,
+    fetch_balance,
     fetch_pots,
     fetch_transactions,
     refresh_access_token,
@@ -104,13 +105,14 @@ class SyncService:
             # Sync accounts
             accounts = await self._sync_accounts(auth.access_token)
 
-            # Sync transactions and pots for each account
+            # Sync transactions, pots, and balance for each account
             for account in accounts:
                 count = await self._sync_account_transactions(
                     auth.access_token, account
                 )
                 transactions_synced += count
                 await self._sync_pots(auth.access_token, account)
+                await self._sync_balance(auth.access_token, account)
 
             # Update sync log with success
             await self._update_sync_log(sync_log, "success", transactions_synced)
@@ -244,6 +246,15 @@ class SyncService:
                 self.session.add(pot)
 
         await self.session.flush()
+
+    async def _sync_balance(self, access_token: str, account: Account) -> None:
+        """Fetch and store current balance for an account."""
+        try:
+            balance_data = await fetch_balance(access_token, account.monzo_id)
+            account.balance = balance_data.get("balance", 0)
+            account.spend_today = balance_data.get("spend_today", 0)
+        except Exception as e:
+            logger.warning(f"Failed to fetch balance for {account.monzo_id}: {e}")
 
     async def _create_sync_log(self) -> SyncLog:
         """Create a new sync log entry."""

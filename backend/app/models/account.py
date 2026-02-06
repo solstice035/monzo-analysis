@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -38,6 +38,16 @@ class Account(Base, TimestampMixin):
     name: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
+    )
+    balance: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+    )
+    spend_today: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
     )
 
     # Relationships
