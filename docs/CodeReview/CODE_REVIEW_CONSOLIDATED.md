@@ -19,6 +19,7 @@
 | H4 | Frontend race conditions on account switch | HIGH | **DONE** |
 | H5 | Mutation hooks don't scope to account ID | HIGH | **DONE** |
 | H6 | Monzo API calls have no timeout | HIGH | OPEN |
+| H7 | Rules engine not wired to sync | HIGH | OPEN |
 | M1 | Migration 002 missing data backfill | MEDIUM | OPEN |
 | M2 | Transaction pagination missing in frontend | MEDIUM | OPEN |
 | M3 | Dashboard balance from local transactions | MEDIUM | OPEN |
@@ -26,6 +27,10 @@
 | M5 | Hardcoded "Last Sync" in sidebar | MEDIUM | OPEN |
 | M6 | Transaction raw_payload JSON mutation | MEDIUM | OPEN |
 | M7 | Budget start_day not validated (1-28) | MEDIUM | OPEN |
+| M8 | Daily digest never called from scheduler | MEDIUM | OPEN |
+| M9 | Transaction search missing in frontend | MEDIUM | OPEN |
+| M10 | No transaction date range filter | MEDIUM | OPEN |
+| M11 | System health Slack notification missing | MEDIUM | OPEN |
 | L1 | Sync race condition (TOCTOU) | LOW | OPEN |
 | L2 | Inconsistent sinking fund calculations | LOW | OPEN |
 | L3 | No frontend 404 route | LOW | OPEN |
@@ -39,6 +44,9 @@
 | L11 | Missing CSP header in nginx | LOW | OPEN |
 | L12 | Frontend duplicates budget period logic | LOW | OPEN |
 | L13 | No container resource limits | LOW | OPEN |
+| L14 | Missing rules engine conditions | LOW | OPEN |
+| L15 | No refund correlation logic | LOW | OPEN |
+| L16 | No historical comparison on dashboard | LOW | OPEN |
 | D1 | No authentication middleware | DEFERRED | — |
 | D2 | IDOR in update/delete endpoints | DEFERRED | — |
 | D3 | OAuth state not validated | DEFERRED | — |
@@ -48,7 +56,85 @@
 | D7 | Backend port exposed in Docker | DEFERRED | — |
 | D8 | Accessibility gaps | DEFERRED | — |
 
-**Open:** 25 | **Done:** 3 | **Deferred:** 8
+**Open:** 31 | **Done:** 3 | **Deferred:** 8
+
+---
+
+## PRD/TRD Feature Compliance
+
+Assessment of all 24 PRD feature requirements against the implemented codebase.
+
+### Must Have Features
+
+| FR | Feature | Status | Notes |
+|----|---------|--------|-------|
+| FR-01 | Scheduled data extraction | PARTIAL | Works but breaks on token expiry (C1), misses data >100 txns (C3) |
+| FR-02 | Full transaction payload | DONE | `raw_payload` JSONB, merchant expand, all fields captured |
+| FR-04 | Store transaction history | DONE | Idempotent upsert on `monzo_id`, indexed |
+| FR-05 | Auto-categorise (layered rules) | PARTIAL | Rules engine exists but **never called during sync** (H7) |
+| FR-06 | Manual category override | DONE | PATCH endpoint + frontend modal |
+| FR-09 | Import budget from spreadsheet | DONE | CSV import with validation and error reporting |
+| FR-10 | Budget categories with monthly limits | DONE | Weekly/monthly periods, sinking funds, budget groups |
+| FR-11 | Map transaction→budget categories | PARTIAL | Simple string match only, no many-to-many mapping |
+| FR-12 | Spend vs budget per category | DONE | Optimised single-query calculation |
+| FR-13 | Overall monthly spend vs total | DONE | Dashboard summary with budget group roll-ups |
+| FR-16 | Alert when budget exceeded | PARTIAL | Code exists but scheduler crash (C2) prevents it firing |
+| FR-19 | Dashboard: budget vs actuals | DONE | Summary cards, budget bars, category breakdown |
+| FR-20 | Category breakdown with progress | DONE | Visual budget bars with gradient fills |
+| FR-21 | Transaction list with search/filter | PARTIAL | Category filter only — no search, no date range, no pagination |
+
+### Should Have Features
+
+| FR | Feature | Status | Notes |
+|----|---------|--------|-------|
+| FR-03 | Handle refunds correctly | MISSING | No correlation logic; refunds appear as separate income (L15) |
+| FR-07 | Learn from overrides (ML data) | PARTIAL | Data stored (`monzo_category` + `custom_category` + `raw_payload`) but no export/pipeline |
+| FR-08 | Identify recurring transactions | DONE | Statistical interval analysis with confidence scoring |
+| FR-15 | Alert at 80% budget | PARTIAL | Code exists but scheduler crash (C2) prevents it firing |
+| FR-17 | Daily/weekly spending summary | PARTIAL | `notify_daily_summary()` exists but never called (M8) |
+| FR-18 | Configurable notification prefs | MISSING | No preference storage or UI |
+| FR-22 | Monthly trend charts | DONE | Recharts AreaChart, 7-90 day range, daily breakdown |
+| FR-23 | Subscription summary | DONE | Recurring detection + subscriptions page |
+
+### Could Have Features
+
+| FR | Feature | Status | Notes |
+|----|---------|--------|-------|
+| FR-14 | Budget rollover | MISSING | No rollover flag or carry-forward logic |
+| FR-24 | AI cost reduction recommendations | MISSING | Future scope |
+
+### TRD Sync Flow (Section 5.1)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Check token, refresh if expired | PARTIAL — checks but never refreshes (C1) |
+| 2 | Fetch transactions (paginated) | PARTIAL — no pagination (C3) |
+| 3 | Fetch balances | PARTIAL — pots synced, account balance API not used (M3) |
+| 4 | Apply rules engine | MISSING — rules engine never called during sync (H7) |
+| 5 | Store (upsert) | DONE |
+| 6 | Analyse (budget usage) | MISSING — no budget recalculation during sync |
+| 7 | Notify (digest/alerts) | PARTIAL — sync complete notified, digest/alerts broken (C2, M8) |
+| 8 | Log sync result | DONE |
+
+### TRD Rules Engine Conditions (Section 6.3)
+
+| Condition | TRD Spec | Implemented |
+|-----------|----------|-------------|
+| `merchant_contains` | Required | Yes (`merchant_pattern`) |
+| `merchant_exact` | Required | No |
+| `amount_gt` | Required | Yes (`amount_min`) |
+| `amount_lt` | Required | Yes (`amount_max`) |
+| `amount_between` | Required | Partial (use min+max together) |
+| `day_of_week` | Required | No |
+| `category_is` | Required | Yes (`monzo_category`) |
+
+### TRD Slack Notifications (Section 7.2)
+
+| Message Type | Implemented | Actually Fires |
+|--------------|-------------|----------------|
+| Daily Digest | Yes (`slack.py`) | No — never called from scheduler (M8) |
+| Threshold Alert (80%/100%) | Yes (`slack.py`) | No — scheduler crash (C2) |
+| System Health (auth expired) | No | — (M11) |
 
 ---
 
@@ -113,6 +199,22 @@ CORS origins only include `localhost` variants. Accessing from another device on
 If Monzo's API is slow or unresponsive, requests hang indefinitely, blocking the scheduler. No more syncs until process restart.
 
 **Fix:** Add `timeout=httpx.Timeout(10.0)` to all clients.
+
+---
+
+### H7. Rules Engine Not Wired to Sync
+**Location:** `backend/app/services/rules.py` (engine), `backend/app/services/sync.py` (sync flow)
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-05 (Must Have), TRD Sync Step 4
+
+The rules engine (`categorise_transaction()` in `rules.py`) is fully implemented with pattern matching and priority ordering, but is **never called during the sync flow**. New transactions are stored with their Monzo category only. The entire categorisation subsystem — including rules created via the UI — has no effect.
+
+This means:
+- Custom rules created in the Rules page do nothing
+- The TRD-specified categorisation priority (user override → custom rules → Monzo category) is not enforced
+- `custom_category` is only ever set by manual override (FR-06), never automatically
+
+**Fix:** Call `categorise_transaction()` on each new transaction during sync step 4, before upsert.
 
 ---
 
@@ -185,6 +287,50 @@ In-place mutation of JSON field may not trigger SQLAlchemy's change detection. C
 Direct API calls allow `start_day=31`, which will crash when calculating periods for February. CSV import already clamps this — the API endpoints don't.
 
 **Fix:** Add the same 1-28 validation to the API create/update endpoints.
+
+---
+
+### M8. Daily Digest Never Called from Scheduler
+**Location:** `backend/app/services/slack.py` (method), `backend/app/services/scheduler.py` (scheduler)
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-17 (Should Have), TRD Section 7.2
+
+`notify_daily_summary()` is fully implemented in `slack.py` with formatting for total spend, transaction count, and top categories. However, it is never invoked from the scheduler or any other code path. The daily spending summary Slack message never fires.
+
+**Fix:** Add a scheduled job in `scheduler.py` that calls `notify_daily_summary()` at end of day.
+
+---
+
+### M9. Transaction Search Missing in Frontend
+**Location:** `frontend/src/pages/transactions.tsx`
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-21 (Must Have)
+
+No search input for finding transactions by merchant name or amount. The backend API supports filtering but the frontend only offers category pills. Users can't search for "Tesco" or find a specific transaction.
+
+**Fix:** Add a search input with debounced query to the transactions page.
+
+---
+
+### M10. No Transaction Date Range Filter
+**Location:** `frontend/src/pages/transactions.tsx`
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-21 (Must Have)
+
+Only category filter is implemented. The backend supports `since` and `until` parameters but the frontend doesn't expose date range selection. Users can't view transactions for a specific week or month.
+
+**Fix:** Add date range picker (or month selector) to the transactions page filter bar.
+
+---
+
+### M11. System Health Slack Notification Missing
+**Location:** `backend/app/services/slack.py`
+**Origin:** Feb 6 PRD/TRD assessment
+**TRD:** Section 7.2
+
+The TRD specifies three Slack message types: daily digest, threshold alert, and system health (auth expired alert with re-auth link). The system health notification is not implemented. When auth expires, the user has no way to know unless they check the dashboard.
+
+**Fix:** Add `notify_auth_expired()` to `slack.py` and call it from sync error handling when token refresh fails.
 
 ---
 
@@ -288,6 +434,33 @@ No `deploy.resources` sections. Containers can consume unlimited resources.
 
 ---
 
+### L14. Missing Rules Engine Conditions
+**Location:** `backend/app/services/rules.py`
+**Origin:** Feb 6 PRD/TRD assessment
+**TRD:** Section 6.3
+
+Rules engine implements 4 of 7 TRD-specified condition types. Missing: `merchant_exact`, `amount_between` (as single condition), `day_of_week`. These limit rule expressiveness but aren't blocking since `merchant_contains` and `amount_min`+`amount_max` cover most cases.
+
+---
+
+### L15. No Refund Correlation Logic
+**Location:** N/A — not implemented
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-03 (Should Have)
+
+Refunds appear as separate positive-amount transactions. No logic to correlate them with original purchases by merchant + amount + timing. This can skew spending totals (a purchase + refund should net to zero in a category). Categorised as LOW because refunds are infrequent and the user can manually spot them.
+
+---
+
+### L16. No Historical Comparison on Dashboard
+**Location:** `frontend/src/pages/dashboard.tsx`
+**Origin:** Feb 6 PRD/TRD assessment
+**PRD:** FR-06 (User Story US-09)
+
+Dashboard shows current month spending but no "vs last month" comparison. The 30-day trend chart provides some context but there's no explicit month-over-month delta shown in summary cards (e.g., "Groceries: £450 — 12% more than last month").
+
+---
+
 ## DEFERRED (Only If Scope Changes to Multi-User / Cloud)
 
 | ID | Issue | Why Deferred |
@@ -360,6 +533,7 @@ No `deploy.resources` sections. Containers can consume unlimited resources.
 | Budget group roll-ups | Totals could be wrong silently | `services/budget_group.py` |
 | Token refresh flow | Core to keeping sync alive | `services/monzo.py:42-66` |
 | Transaction sync pagination | Ensures you don't miss data | `services/sync.py` |
+| Rules applied during sync | Verify categorisation actually runs | `services/sync.py` + `services/rules.py` |
 
 ---
 
@@ -370,15 +544,20 @@ No `deploy.resources` sections. Containers can consume unlimited resources.
 2. **C3 — Sync pagination** — silently miss transactions
 3. **H6 — API timeouts** — slow Monzo API kills scheduler
 4. **C2 — Scheduler account_id** — runtime TypeError crashes alert job
+5. **H7 — Wire rules to sync** — auto-categorisation has no effect (Must Have FR-05)
 
-### Fix Next (Data Accuracy)
-5. **M3 — Balance from Monzo API** — show real balance
-6. **M5 — Sidebar last sync** — know when sync is working
-7. **M6 — JSON mutation** — category overrides may not persist
+### Fix Next (Data Accuracy + Notifications)
+6. **M3 — Balance from Monzo API** — show real balance
+7. **M8 — Daily digest** — wire the existing function to the scheduler
+8. **M11 — Auth expired notification** — know when re-auth is needed
+9. **M5 — Sidebar last sync** — know when sync is working
+10. **M6 — JSON mutation** — category overrides may not persist
 
 ### Fix When Motivated (UX Polish)
-8. **H1 — Error boundaries** — prevent white screen crashes
-9. **H3 — CORS for LAN** — access from other devices
-10. **M2 — Transaction pagination** — browse older transactions
-11. **M4 — Settings wiring** — stop the confusion
-12. **M1 — Migration backfill** — one-time fix for pre-migration data
+11. **H1 — Error boundaries** — prevent white screen crashes
+12. **H3 — CORS for LAN** — access from other devices
+13. **M9 — Transaction search** — find transactions by merchant/amount
+14. **M10 — Date range filter** — view transactions for a specific period
+15. **M2 — Transaction pagination** — browse older transactions
+16. **M4 — Settings wiring** — stop the confusion
+17. **M1 — Migration backfill** — one-time fix for pre-migration data
