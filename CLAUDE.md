@@ -27,7 +27,7 @@ See TRD for architecture, data model, API design, and implementation approach.
 | ML learning | Future iteration | Architecture supports swap from rules → ML |
 | Pot transfers | Exclude from spending | Pots are savings, not spending |
 | Notifications | Slack (`#monzo`) | Single channel, webhook integration, rich formatting |
-| Deployment | Docker on Unraid | Always-on, no ongoing cost, portable to DigitalOcean |
+| Deployment | Docker on Mac Mini | Always-on local server, no ongoing cost |
 | Dashboard | Full CRUD UI | Configure rules, budgets, trigger syncs from browser |
 | Budget reset | Configurable day (1-28) | Aligns with payday, not calendar month |
 | Visual identity | Bold dark mode | Monzo hot coral on navy; premium analytics feel |
@@ -393,7 +393,7 @@ Access the app at http://localhost
 7. ~~**Budget Import**~~ ✅ CSV import functional
 8. ~~**Dashboard Trends**~~ ✅ Recharts visualization complete
 9. ~~**Recurring Detection**~~ ✅ Subscription detection working
-10. **Deploy to Unraid** - Copy `docker-compose.yml` and `.env` to server
+10. **Deploy to Mac Mini** - Copy `docker-compose.yml` and `.env` to server
 11. **Initial Sync** - Trigger first real transaction sync from Monzo
 12. **Slack Integration** - Configure webhook for daily summaries
 
@@ -416,13 +416,9 @@ Access the app at http://localhost
 
 ### Known Issues
 
-See [docs/CODE_REVIEW_2026-01-20.md](docs/CODE_REVIEW_2026-01-20.md) for multi-account security review:
-- **CRITICAL:** IDOR vulnerabilities in budget/rule/transaction update/delete endpoints
-- **HIGH:** Migration needs data backfill for existing records
-
-See [docs/CODE_REVIEW_2026-01-18.md](docs/CODE_REVIEW_2026-01-18.md) for earlier findings:
-- N+1 queries in budget status calculation (performance) - FIXED
-- Silent Slack failures need logging
+See [docs/CodeReview/CODE_REVIEW_CONSOLIDATED.md](docs/CodeReview/CODE_REVIEW_CONSOLIDATED.md) for all findings:
+- **CRITICAL:** Token refresh not called, scheduler missing account filter, no sync pagination
+- **7 items DONE** (N+1 query, Slack logging, DB ports, engine singleton, app init, account switch, mutation scoping)
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
 
