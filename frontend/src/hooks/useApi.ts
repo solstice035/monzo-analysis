@@ -35,6 +35,7 @@ export function useTransactions(params?: {
   limit?: number;
   offset?: number;
   category?: string;
+  search?: string;
   since?: string;
   until?: string;
 }) {

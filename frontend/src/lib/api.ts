@@ -185,6 +185,7 @@ export const api = {
     limit?: number;
     offset?: number;
     category?: string;
+    search?: string;
     since?: string;
     until?: string;
   }) => {
@@ -193,6 +194,7 @@ export const api = {
     if (params.limit) searchParams.set('limit', params.limit.toString());
     if (params.offset) searchParams.set('offset', params.offset.toString());
     if (params.category) searchParams.set('category', params.category);
+    if (params.search) searchParams.set('search', params.search);
     if (params.since) searchParams.set('since', params.since);
     if (params.until) searchParams.set('until', params.until);
 

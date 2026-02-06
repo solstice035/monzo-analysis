@@ -64,6 +64,7 @@ async def get_transactions(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     category: str | None = Query(None),
+    search: str | None = Query(None, description="Search merchant name"),
     since: str | None = Query(None),
     until: str | None = Query(None),
 ) -> dict[str, Any]:
@@ -77,6 +78,8 @@ async def get_transactions(
                 (TransactionModel.custom_category == category)
                 | (TransactionModel.monzo_category == category)
             )
+        if search:
+            filters.append(TransactionModel.merchant_name.ilike(f"%{search}%"))
         if since:
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
             filters.append(TransactionModel.created_at >= since_dt)
