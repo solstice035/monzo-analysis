@@ -9,6 +9,7 @@ from app.config import Settings
 
 MONZO_AUTH_URL = "https://auth.monzo.com"
 MONZO_API_URL = "https://api.monzo.com"
+API_TIMEOUT = httpx.Timeout(30.0)
 
 
 async def exchange_code_for_tokens(code: str, settings: Settings | None = None) -> dict[str, Any]:
@@ -24,7 +25,7 @@ async def exchange_code_for_tokens(code: str, settings: Settings | None = None) 
     if settings is None:
         settings = Settings()
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.post(
             f"{MONZO_API_URL}/oauth2/token",
             data={
@@ -52,7 +53,7 @@ async def refresh_access_token(refresh_token: str, settings: Settings | None = N
     if settings is None:
         settings = Settings()
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.post(
             f"{MONZO_API_URL}/oauth2/token",
             data={
@@ -110,7 +111,7 @@ async def fetch_accounts(access_token: str) -> list[dict[str, Any]]:
     Returns:
         List of account objects
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.get(
             f"{MONZO_API_URL}/accounts",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -125,33 +126,49 @@ async def fetch_transactions(
     since: datetime | None = None,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
-    """Fetch transactions for an account.
+    """Fetch all transactions for an account, paginating automatically.
+
+    Keeps fetching with a moving `since` cursor until a batch returns
+    fewer than `limit` results, indicating no more pages.
 
     Args:
         access_token: Valid Monzo access token
         account_id: Monzo account ID
         since: Only fetch transactions after this datetime
-        limit: Maximum number of transactions (default 100)
+        limit: Page size per request (default 100)
 
     Returns:
-        List of transaction objects
+        List of all transaction objects
     """
-    params: dict[str, Any] = {
-        "account_id": account_id,
-        "limit": limit,
-        "expand[]": "merchant",
-    }
-    if since:
-        params["since"] = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+    all_transactions: list[dict[str, Any]] = []
+    cursor = since.strftime("%Y-%m-%dT%H:%M:%SZ") if since else None
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{MONZO_API_URL}/transactions",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params=params,
-        )
-        response.raise_for_status()
-        return response.json()["transactions"]
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
+        while True:
+            params: dict[str, Any] = {
+                "account_id": account_id,
+                "limit": limit,
+                "expand[]": "merchant",
+            }
+            if cursor:
+                params["since"] = cursor
+
+            response = await client.get(
+                f"{MONZO_API_URL}/transactions",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params=params,
+            )
+            response.raise_for_status()
+            batch = response.json()["transactions"]
+            all_transactions.extend(batch)
+
+            if len(batch) < limit:
+                break
+
+            # Move cursor to the last transaction's ID for next page
+            cursor = batch[-1]["id"]
+
+    return all_transactions
 
 
 async def fetch_pots(access_token: str, account_id: str) -> list[dict[str, Any]]:
@@ -164,7 +181,7 @@ async def fetch_pots(access_token: str, account_id: str) -> list[dict[str, Any]]
     Returns:
         List of pot objects
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.get(
             f"{MONZO_API_URL}/pots",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -184,7 +201,7 @@ async def fetch_balance(access_token: str, account_id: str) -> dict[str, Any]:
     Returns:
         Balance information
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
         response = await client.get(
             f"{MONZO_API_URL}/balance",
             headers={"Authorization": f"Bearer {access_token}"},

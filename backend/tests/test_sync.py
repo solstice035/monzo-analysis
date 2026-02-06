@@ -99,6 +99,44 @@ class TestMonzoDataFetching:
             assert "since" in call_args.kwargs.get("params", {})
 
     @pytest.mark.asyncio
+    async def test_fetch_transactions_paginates(self) -> None:
+        """Fetch transactions should paginate when a full page is returned."""
+        from app.services.monzo import fetch_transactions
+
+        # Page 1: full page of 3 (limit=3), page 2: partial page of 1
+        page1 = [
+            {"id": f"tx_{i}", "amount": -100, "created": "2025-01-18T10:00:00Z"}
+            for i in range(3)
+        ]
+        page2 = [
+            {"id": "tx_3", "amount": -100, "created": "2025-01-18T11:00:00Z"}
+        ]
+
+        mock_response_1 = MagicMock()
+        mock_response_1.json.return_value = {"transactions": page1}
+        mock_response_1.raise_for_status = MagicMock()
+
+        mock_response_2 = MagicMock()
+        mock_response_2.json.return_value = {"transactions": page2}
+        mock_response_2.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = [mock_response_1, mock_response_2]
+
+        with patch("httpx.AsyncClient") as MockAsyncClient:
+            MockAsyncClient.return_value.__aenter__.return_value = mock_client
+            MockAsyncClient.return_value.__aexit__.return_value = None
+
+            result = await fetch_transactions("test_token", "acc_123", limit=3)
+
+            assert len(result) == 4  # 3 + 1
+            assert mock_client.get.call_count == 2
+
+            # Second call should use last tx ID as cursor
+            second_call_params = mock_client.get.call_args_list[1].kwargs["params"]
+            assert second_call_params["since"] == "tx_2"
+
+    @pytest.mark.asyncio
     async def test_fetch_pots_returns_pot_list(self) -> None:
         """Fetch pots should return list of savings pots."""
         from app.services.monzo import fetch_pots
@@ -156,6 +194,41 @@ class TestMonzoDataFetching:
 
             assert result["balance"] == 150000
             assert result["spend_today"] == -2500
+
+
+class TestApiTimeout:
+    """Tests for API timeout configuration."""
+
+    @pytest.mark.asyncio
+    async def test_monzo_api_uses_timeout(self) -> None:
+        """All Monzo API calls should use a 30-second timeout."""
+        import httpx
+        from app.services.monzo import API_TIMEOUT
+
+        assert isinstance(API_TIMEOUT, httpx.Timeout)
+        assert API_TIMEOUT.connect == 30.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_accounts_passes_timeout(self) -> None:
+        """fetch_accounts should create client with timeout."""
+        from app.services.monzo import fetch_accounts
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"accounts": []}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("httpx.AsyncClient") as MockAsyncClient:
+            MockAsyncClient.return_value.__aenter__.return_value = mock_client
+            MockAsyncClient.return_value.__aexit__.return_value = None
+
+            await fetch_accounts("test_token")
+
+            # Verify timeout was passed to AsyncClient constructor
+            call_kwargs = MockAsyncClient.call_args.kwargs
+            assert "timeout" in call_kwargs
 
 
 class TestSyncService:
@@ -222,10 +295,8 @@ class TestSyncService:
                                 await service.run_sync()
 
                                 # Verify update was called with success status
-                                # _update_sync_log(sync_log, status, transactions_synced)
                                 mock_update.assert_called()
                                 call_args = mock_update.call_args
-                                # Positional args: (sync_log, "success", 10)
                                 assert call_args.args[1] == "success"
                                 assert call_args.args[2] == 10
 
@@ -242,6 +313,103 @@ class TestSyncService:
 
             with pytest.raises(SyncError, match="Not authenticated"):
                 await service.run_sync()
+
+    @pytest.mark.asyncio
+    async def test_sync_refreshes_expired_token(self) -> None:
+        """Sync should refresh token when expired instead of raising error."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        # Create mock auth with EXPIRED token
+        mock_auth_obj = MagicMock(
+            access_token="old_token",
+            refresh_token="refresh_token_123",
+            expires_at=datetime(2020, 1, 1, tzinfo=timezone.utc),  # expired
+        )
+
+        with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
+            mock_auth.return_value = mock_auth_obj
+
+            with patch.object(service, "_refresh_token", new_callable=AsyncMock) as mock_refresh:
+                refreshed_auth = MagicMock(
+                    access_token="new_token",
+                    expires_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+                )
+                mock_refresh.return_value = refreshed_auth
+
+                with patch.object(service, "_sync_accounts", new_callable=AsyncMock) as mock_sync_acc:
+                    mock_sync_acc.return_value = []
+
+                    with patch.object(service, "_create_sync_log", new_callable=AsyncMock) as mock_log:
+                        mock_log.return_value = MagicMock()
+                        with patch.object(service, "_update_sync_log", new_callable=AsyncMock):
+                            await service.run_sync()
+
+                            # Verify refresh was called with the expired auth
+                            mock_refresh.assert_called_once_with(mock_auth_obj)
+                            # Verify sync used the refreshed token
+                            mock_sync_acc.assert_called_once_with("new_token")
+
+    @pytest.mark.asyncio
+    async def test_sync_raises_on_refresh_failure(self) -> None:
+        """Sync should raise SyncError when token refresh fails."""
+        from app.services.sync import SyncService, SyncError
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_auth_obj = MagicMock(
+            access_token="old_token",
+            refresh_token="bad_refresh",
+            expires_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        )
+
+        with patch.object(service, "_get_auth", new_callable=AsyncMock) as mock_auth:
+            mock_auth.return_value = mock_auth_obj
+
+            with patch(
+                "app.services.sync.refresh_access_token",
+                new_callable=AsyncMock,
+                side_effect=Exception("Invalid refresh token"),
+            ):
+                with pytest.raises(SyncError, match="Token refresh failed"):
+                    await service.run_sync()
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_updates_auth_record(self) -> None:
+        """_refresh_token should update the auth record in the database."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_auth = MagicMock(
+            access_token="old_token",
+            refresh_token="old_refresh",
+            expires_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        )
+
+        token_response = {
+            "access_token": "new_access_token",
+            "refresh_token": "new_refresh_token",
+            "expires_in": 3600,
+        }
+
+        with patch(
+            "app.services.sync.refresh_access_token",
+            new_callable=AsyncMock,
+            return_value=token_response,
+        ):
+            with patch("app.services.sync.calculate_token_expiry") as mock_expiry:
+                mock_expiry.return_value = datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+                result = await service._refresh_token(mock_auth)
+
+                assert result.access_token == "new_access_token"
+                assert result.refresh_token == "new_refresh_token"
+                mock_session.flush.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sync_updates_log_on_error(self) -> None:
@@ -273,10 +441,8 @@ class TestSyncService:
                             pass
 
                         # Verify update was called with failed status
-                        # _update_sync_log(sync_log, status, transactions_synced=0, error=str)
                         mock_update.assert_called()
                         call_args = mock_update.call_args
-                        # Positional args: (sync_log, "failed")
                         assert call_args.args[1] == "failed"
 
 
@@ -285,7 +451,7 @@ class TestTransactionUpsert:
 
     @pytest.mark.asyncio
     async def test_upsert_creates_new_transaction(self) -> None:
-        """Upsert should create new transaction if not exists."""
+        """Upsert should create new transaction via ON CONFLICT DO NOTHING."""
         from app.services.sync import upsert_transaction
 
         tx_data = {
@@ -296,9 +462,9 @@ class TestTransactionUpsert:
             "created": "2025-01-18T10:00:00Z",
         }
 
-        # Properly mock async session with result object
+        # Mock session.execute to return rowcount=1 (inserted)
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_result.rowcount = 1
 
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_result
@@ -306,13 +472,12 @@ class TestTransactionUpsert:
         account_id = "acc_123"
         result = await upsert_transaction(mock_session, account_id, tx_data)
 
-        assert result is True  # New transaction created
-        mock_session.add.assert_called_once()
+        assert result is True
+        mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_upsert_updates_existing_transaction(self) -> None:
-        """Upsert should update existing transaction."""
-        from app.models import Transaction
+        """Upsert should update settled_at on existing transaction."""
         from app.services.sync import upsert_transaction
 
         tx_data = {
@@ -324,20 +489,43 @@ class TestTransactionUpsert:
             "settled": "2025-01-18T12:00:00Z",
         }
 
-        # Mock existing transaction
-        existing_tx = MagicMock(spec=Transaction)
-        existing_tx.settled_at = None
+        # First execute (ON CONFLICT DO NOTHING) returns rowcount=0 (conflict)
+        mock_insert_result = MagicMock()
+        mock_insert_result.rowcount = 0
 
-        # Properly mock async session with result object
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = existing_tx
+        # Second execute (UPDATE settled_at) returns rowcount=1
+        mock_update_result = MagicMock()
+        mock_update_result.rowcount = 1
 
         mock_session = AsyncMock()
-        mock_session.execute.return_value = mock_result
+        mock_session.execute.side_effect = [mock_insert_result, mock_update_result]
 
         account_id = "acc_123"
         result = await upsert_transaction(mock_session, account_id, tx_data)
 
-        assert result is False  # Existing transaction updated
-        # Verify settled_at was updated
-        assert existing_tx.settled_at is not None
+        assert result is False  # Existing transaction
+        assert mock_session.execute.call_count == 2  # INSERT + UPDATE
+
+    @pytest.mark.asyncio
+    async def test_upsert_handles_iso_datetime_with_z_suffix(self) -> None:
+        """Upsert should handle ISO datetimes with Z suffix (Python 3.12+)."""
+        from app.services.sync import upsert_transaction
+
+        tx_data = {
+            "id": "tx_z_test",
+            "amount": -500,
+            "merchant": None,
+            "category": "general",
+            "created": "2025-01-18T10:00:00Z",
+            "settled": "2025-01-18T12:00:00Z",
+        }
+
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_result
+
+        # Should not raise — Python 3.12 handles Z natively
+        result = await upsert_transaction(mock_session, "acc_123", tx_data)
+        assert result is True

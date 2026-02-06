@@ -1,19 +1,25 @@
 """Transaction sync service for fetching and storing Monzo data."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.models import Account, Auth, Pot, SyncLog, Transaction
 from app.services.monzo import (
+    calculate_token_expiry,
     fetch_accounts,
     fetch_pots,
     fetch_transactions,
+    refresh_access_token,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SyncError(Exception):
@@ -27,41 +33,49 @@ async def upsert_transaction(
     account_id: uuid.UUID,
     tx_data: dict[str, Any],
 ) -> bool:
-    """Insert or update a transaction."""
+    """Insert or update a transaction using ON CONFLICT.
+
+    Uses PostgreSQL INSERT ... ON CONFLICT DO NOTHING for race-safe inserts.
+    Existing transactions get their settled_at updated separately.
+    Returns True if a new transaction was created, False if it already existed.
+    """
     monzo_id = tx_data["id"]
-
-    # Check if transaction exists
-    result = await session.execute(
-        select(Transaction).where(Transaction.monzo_id == monzo_id)
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        # Update existing transaction (e.g., settled status)
-        if "settled" in tx_data and tx_data["settled"]:
-            existing.settled_at = datetime.fromisoformat(
-                tx_data["settled"].replace("Z", "+00:00")
-            )
-        return False
-
-    # Create new transaction
     merchant = tx_data.get("merchant") or {}
-    transaction = Transaction(
+    merchant_name = merchant.get("name") if isinstance(merchant, dict) else None
+    created_at = datetime.fromisoformat(tx_data["created"])
+    settled_at = (
+        datetime.fromisoformat(tx_data["settled"])
+        if tx_data.get("settled")
+        else None
+    )
+
+    # Try to insert; do nothing on conflict (race-safe)
+    stmt = pg_insert(Transaction).values(
+        id=uuid.uuid4(),
         monzo_id=monzo_id,
         account_id=account_id,
         amount=tx_data["amount"],
-        merchant_name=merchant.get("name") if isinstance(merchant, dict) else None,
+        merchant_name=merchant_name,
         monzo_category=tx_data.get("category"),
-        created_at=datetime.fromisoformat(tx_data["created"].replace("Z", "+00:00")),
-        settled_at=(
-            datetime.fromisoformat(tx_data["settled"].replace("Z", "+00:00"))
-            if tx_data.get("settled")
-            else None
-        ),
+        created_at=created_at,
+        settled_at=settled_at,
         raw_payload=tx_data,
-    )
-    session.add(transaction)
-    return True
+    ).on_conflict_do_nothing(index_elements=["monzo_id"])
+
+    result = await session.execute(stmt)
+    is_new = result.rowcount > 0
+
+    if not is_new and settled_at:
+        # Update settled_at on the existing row if it wasn't set before
+        from sqlalchemy import update
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.monzo_id == monzo_id)
+            .where(Transaction.settled_at.is_(None))
+            .values(settled_at=settled_at)
+        )
+
+    return is_new
 
 
 class SyncService:
@@ -78,9 +92,9 @@ class SyncService:
         if not auth:
             raise SyncError("Not authenticated")
 
-        # Check if token is expired
+        # Refresh token if expired
         if auth.expires_at < datetime.now(timezone.utc):
-            raise SyncError("Token expired - re-authentication required")
+            auth = await self._refresh_token(auth)
 
         # Create sync log
         sync_log = await self._create_sync_log()
@@ -113,6 +127,24 @@ class SyncService:
         """Get current authentication."""
         result = await self.session.execute(select(Auth).limit(1))
         return result.scalar_one_or_none()
+
+    async def _refresh_token(self, auth: Auth) -> Auth:
+        """Refresh an expired access token.
+
+        Updates the auth record in the database with new tokens.
+        Raises SyncError if refresh fails.
+        """
+        logger.info("Access token expired, attempting refresh")
+        try:
+            token_data = await refresh_access_token(auth.refresh_token)
+            auth.access_token = token_data["access_token"]
+            auth.refresh_token = token_data["refresh_token"]
+            auth.expires_at = calculate_token_expiry(token_data["expires_in"])
+            await self.session.flush()
+            logger.info("Token refreshed successfully")
+            return auth
+        except Exception as e:
+            raise SyncError(f"Token refresh failed: {e}") from e
 
     async def _sync_accounts(self, access_token: str) -> list[Account]:
         """Sync accounts from Monzo."""
