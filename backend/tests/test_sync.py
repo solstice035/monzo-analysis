@@ -529,3 +529,100 @@ class TestTransactionUpsert:
         # Should not raise — Python 3.12 handles Z natively
         result = await upsert_transaction(mock_session, "acc_123", tx_data)
         assert result is True
+
+
+class TestSyncRulesIntegration:
+    """Tests for rules engine integration with sync."""
+
+    @pytest.mark.asyncio
+    async def test_sync_applies_rules_to_new_transactions(self) -> None:
+        """Sync should apply matching rules to new transactions."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_account = MagicMock(id="acc_123", monzo_id="monzo_acc_123")
+
+        # Mock the latest transaction query (no existing transactions)
+        mock_latest_result = MagicMock()
+        mock_latest_result.scalar_one_or_none.return_value = None
+
+        # Mock the rules query
+        mock_rule = MagicMock()
+        mock_rule.enabled = True
+        mock_rule.priority = 50
+        mock_rule.target_category = "Weekly Shop"
+        mock_rule.conditions = {"merchant_pattern": "tesco"}
+
+        mock_rules_result = MagicMock()
+        mock_rules_result.scalars.return_value.all.return_value = [mock_rule]
+
+        mock_session.execute.side_effect = [
+            mock_latest_result,   # latest transaction query
+            mock_rules_result,    # rules query
+            MagicMock(rowcount=1),  # upsert INSERT (new tx)
+            MagicMock(),            # UPDATE custom_category
+        ]
+
+        tx_data = [{
+            "id": "tx_tesco_1",
+            "amount": -4500,
+            "merchant": {"name": "Tesco Express"},
+            "category": "groceries",
+            "created": "2025-01-20T10:00:00Z",
+        }]
+
+        with patch("app.services.sync.fetch_transactions", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = tx_data
+
+            with patch("app.services.rules.categorise_transaction") as mock_categorise:
+                mock_categorise.return_value = "Weekly Shop"
+
+                count = await service._sync_account_transactions(
+                    "test_token", mock_account
+                )
+
+                assert count == 1
+                mock_categorise.assert_called_once_with(tx_data[0], [mock_rule])
+
+    @pytest.mark.asyncio
+    async def test_sync_preserves_existing_custom_category(self) -> None:
+        """Sync should not overwrite user-set custom categories."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_account = MagicMock(id="acc_123", monzo_id="monzo_acc_123")
+
+        mock_latest_result = MagicMock()
+        mock_latest_result.scalar_one_or_none.return_value = None
+
+        mock_rules_result = MagicMock()
+        mock_rules_result.scalars.return_value.all.return_value = []  # No rules
+
+        mock_session.execute.side_effect = [
+            mock_latest_result,
+            mock_rules_result,
+            MagicMock(rowcount=1),  # upsert INSERT
+        ]
+
+        tx_data = [{
+            "id": "tx_123",
+            "amount": -500,
+            "merchant": {"name": "Shop"},
+            "category": "general",
+            "created": "2025-01-20T10:00:00Z",
+        }]
+
+        with patch("app.services.sync.fetch_transactions", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = tx_data
+
+            count = await service._sync_account_transactions(
+                "test_token", mock_account
+            )
+
+            assert count == 1
+            # No categorise_transaction call since no rules
+            # And the UPDATE for custom_category should NOT have been called

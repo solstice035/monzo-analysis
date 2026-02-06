@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models import Account, Auth, Pot, SyncLog, Transaction
+from app.models import Account, Auth, CategoryRule, Pot, SyncLog, Transaction
 from app.services.monzo import (
     calculate_token_expiry,
     fetch_accounts,
@@ -174,7 +174,9 @@ class SyncService:
     async def _sync_account_transactions(
         self, access_token: str, account: Account
     ) -> int:
-        """Sync transactions for a single account."""
+        """Sync transactions for a single account, applying category rules."""
+        from app.services.rules import categorise_transaction
+
         result = await self.session.execute(
             select(Transaction)
             .where(Transaction.account_id == account.id)
@@ -188,9 +190,30 @@ class SyncService:
             access_token, account.monzo_id, since=since
         )
 
+        # Fetch enabled rules for this account
+        rules_result = await self.session.execute(
+            select(CategoryRule)
+            .where(CategoryRule.account_id == account.id)
+            .where(CategoryRule.enabled.is_(True))
+            .order_by(CategoryRule.priority.desc())
+        )
+        rules = list(rules_result.scalars().all())
+
         new_count = 0
         for tx_data in transactions:
             is_new = await upsert_transaction(self.session, account.id, tx_data)
+            if is_new and rules:
+                # Apply rules to new transactions (don't overwrite user overrides)
+                category = categorise_transaction(tx_data, rules)
+                if category:
+                    monzo_id = tx_data["id"]
+                    from sqlalchemy import update
+                    await self.session.execute(
+                        update(Transaction)
+                        .where(Transaction.monzo_id == monzo_id)
+                        .where(Transaction.custom_category.is_(None))
+                        .values(custom_category=category)
+                    )
             if is_new:
                 new_count += 1
 
