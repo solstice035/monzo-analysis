@@ -195,6 +195,34 @@ class TestSlackBlockFormatting:
         assert len(block["elements"]) == 2
 
 
+class TestSlackAuthExpired:
+    """Tests for auth expired notification."""
+
+    @pytest.mark.asyncio
+    async def test_notify_auth_expired_sends_message(self) -> None:
+        """Should send auth expired notification with error details."""
+        from app.services.slack import SlackService
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+
+        with patch("httpx.AsyncClient") as MockAsyncClient:
+            MockAsyncClient.return_value.__aenter__.return_value = mock_client
+            MockAsyncClient.return_value.__aexit__.return_value = None
+
+            service = SlackService(webhook_url="https://hooks.slack.com/test")
+            result = await service.notify_auth_expired(error="Invalid refresh token")
+
+            assert result is True
+            call_args = mock_client.post.call_args
+            message_text = call_args.kwargs["json"]["text"]
+            assert "Authentication Expired" in message_text
+            assert "Invalid refresh token" in message_text
+
+
 class TestSlackServiceIntegration:
     """Integration tests for Slack notification workflows."""
 

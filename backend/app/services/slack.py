@@ -306,6 +306,23 @@ class SlackService:
         message = format_budget_exceeded(budget_status)
         return await self.send_message(message)
 
+    async def notify_auth_expired(self, error: str = "") -> bool:
+        """Send auth expired notification to Slack.
+
+        Args:
+            error: Error message from the failed refresh attempt
+
+        Returns:
+            True if sent successfully
+        """
+        message = (
+            "🔑 *Authentication Expired*\n"
+            "Monzo token refresh failed. Please re-authenticate.\n"
+        )
+        if error:
+            message += f"Error: `{error}`"
+        return await self.send_message(message)
+
     async def notify_sync_complete(
         self,
         transactions_synced: int,

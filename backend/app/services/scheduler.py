@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import get_settings
@@ -16,6 +17,7 @@ from app.services.sync import SyncService
 logger = logging.getLogger(__name__)
 
 SYNC_JOB_ID = "monzo_sync"
+DIGEST_JOB_ID = "daily_digest"
 
 
 def get_sync_job_id() -> str:
@@ -42,6 +44,15 @@ def create_scheduler() -> AsyncIOScheduler:
         trigger=IntervalTrigger(hours=settings.sync_interval_hours),
         id=SYNC_JOB_ID,
         name="Monzo Transaction Sync",
+        replace_existing=True,
+    )
+
+    # Add daily digest job — runs at 21:00 every day
+    scheduler.add_job(
+        run_daily_digest,
+        trigger=CronTrigger(hour=21, minute=0),
+        id=DIGEST_JOB_ID,
+        name="Daily Spending Digest",
         replace_existing=True,
     )
 
@@ -125,6 +136,14 @@ async def run_scheduled_sync() -> int | None:
 
     except Exception as e:
         logger.error(f"Scheduled sync failed: {e}")
+
+        # Send auth expired notification if it's a token issue
+        if "token" in str(e).lower() or "refresh" in str(e).lower():
+            settings = get_settings()
+            if settings.slack_webhook_url:
+                slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+                await slack_service.notify_auth_expired(error=str(e))
+
         return None
 
 
@@ -139,15 +158,19 @@ async def trigger_sync_now() -> int | None:
 
 
 async def check_budget_alerts() -> None:
-    """Check all budgets and send alerts for warnings/exceeded.
+    """Check all budgets across all accounts and send alerts.
 
+    Iterates all accounts and checks budget statuses for each.
     Sends Slack notifications for:
     - Budgets at 80-99% usage (warning)
     - Budgets at 100%+ usage (exceeded)
     """
     from datetime import date
 
+    from sqlalchemy import select
+
     from app.database import get_session
+    from app.models import Account
 
     settings = get_settings()
     if not settings.slack_webhook_url:
@@ -158,24 +181,95 @@ async def check_budget_alerts() -> None:
 
     try:
         async with get_session() as session:
-            budget_service = BudgetService(session=session)
-            statuses = await budget_service.get_all_budget_statuses(date.today())
+            # Fetch all accounts and check budgets for each
+            accounts_result = await session.execute(select(Account))
+            accounts = list(accounts_result.scalars().all())
 
-            for status in statuses:
-                if status.status == "over":
-                    await slack_service.notify_budget_exceeded(
-                        category=status.category,
-                        amount=status.amount,
-                        spent=status.spent,
-                        percentage=status.percentage,
-                    )
-                elif status.status == "warning":
-                    await slack_service.notify_budget_warning(
-                        category=status.category,
-                        amount=status.amount,
-                        spent=status.spent,
-                        percentage=status.percentage,
-                    )
+            budget_service = BudgetService(session=session)
+
+            for account in accounts:
+                statuses = await budget_service.get_all_budget_statuses(
+                    account.id, date.today()
+                )
+
+                for status in statuses:
+                    if status.status == "over":
+                        await slack_service.notify_budget_exceeded(
+                            category=status.category,
+                            amount=status.amount,
+                            spent=status.spent,
+                            percentage=status.percentage,
+                        )
+                    elif status.status == "warning":
+                        await slack_service.notify_budget_warning(
+                            category=status.category,
+                            amount=status.amount,
+                            spent=status.spent,
+                            percentage=status.percentage,
+                        )
 
     except Exception as e:
         logger.error(f"Budget alert check failed: {e}")
+
+
+async def run_daily_digest() -> None:
+    """Run the daily spending digest and send to Slack.
+
+    Queries today's transactions per account, summarizes spending,
+    and sends a formatted digest to Slack.
+    """
+    from datetime import date
+
+    from sqlalchemy import select, func
+
+    from app.database import get_session
+    from app.models import Account, Transaction
+
+    settings = get_settings()
+    if not settings.slack_webhook_url:
+        return
+
+    slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+    today = date.today()
+
+    try:
+        async with get_session() as session:
+            accounts_result = await session.execute(select(Account))
+            accounts = list(accounts_result.scalars().all())
+
+            for account in accounts:
+                # Get today's transactions (spending only, amount < 0)
+                result = await session.execute(
+                    select(Transaction)
+                    .where(Transaction.account_id == account.id)
+                    .where(func.date(Transaction.created_at) == today)
+                    .where(Transaction.amount < 0)
+                )
+                transactions = list(result.scalars().all())
+
+                if not transactions:
+                    continue
+
+                total_spend = sum(abs(tx.amount) for tx in transactions)
+                tx_count = len(transactions)
+
+                # Find top category
+                category_totals: dict[str, int] = {}
+                for tx in transactions:
+                    cat = tx.custom_category or tx.monzo_category or "general"
+                    category_totals[cat] = category_totals.get(cat, 0) + abs(tx.amount)
+
+                top_category = max(category_totals, key=category_totals.get)
+                top_spend = category_totals[top_category]
+
+                account_label = account.name or account.type
+                await slack_service.notify_daily_summary(
+                    date=f"{today.isoformat()} ({account_label})",
+                    total_spend=total_spend,
+                    transaction_count=tx_count,
+                    top_category=top_category,
+                    top_category_spend=top_spend,
+                )
+
+    except Exception as e:
+        logger.error(f"Daily digest failed: {e}")

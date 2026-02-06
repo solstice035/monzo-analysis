@@ -33,6 +33,18 @@ class TestSchedulerConfiguration:
             # Job ID should be consistent
             assert job_id == "monzo_sync"
 
+    def test_scheduler_has_daily_digest_job(self) -> None:
+        """Scheduler should have a daily digest job."""
+        from app.services.scheduler import create_scheduler, DIGEST_JOB_ID
+
+        with patch("app.services.scheduler.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(sync_interval_hours=24)
+
+            scheduler = create_scheduler()
+            job = scheduler.get_job(DIGEST_JOB_ID)
+
+            assert job is not None
+
 
 class TestSyncJobExecution:
     """Tests for sync job execution."""
@@ -93,6 +105,28 @@ class TestSyncJobExecution:
 
                     assert result is None
                     mock_logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_sync_sends_auth_expired_on_token_failure(self) -> None:
+        """Sync should send auth expired notification when token refresh fails."""
+        from app.services.scheduler import run_scheduled_sync
+
+        with patch("app.services.scheduler.SyncService") as MockSyncService:
+            mock_service = AsyncMock()
+            mock_service.run_sync.side_effect = Exception("Token refresh failed: invalid")
+            MockSyncService.return_value = mock_service
+
+            with patch("app.services.scheduler.SlackService") as MockSlackService:
+                mock_slack = AsyncMock()
+                MockSlackService.return_value = mock_slack
+
+                with patch("app.services.scheduler.get_settings") as mock_settings:
+                    mock_settings.return_value = MagicMock(slack_webhook_url="https://test")
+
+                    result = await run_scheduled_sync()
+
+                    assert result is None
+                    mock_slack.notify_auth_expired.assert_called_once()
 
 
 class TestManualTrigger:
@@ -186,11 +220,18 @@ class TestBudgetCheckIntegration:
                     mock_check.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_budget_alert_sends_slack_warning(self) -> None:
-        """Budget check should send Slack warning for 80%+ usage."""
+    async def test_budget_alerts_iterates_accounts(self) -> None:
+        """Budget check should iterate all accounts and check statuses for each."""
         from app.services.scheduler import check_budget_alerts
         from app.services.budget import BudgetStatus
-        from datetime import date
+
+        mock_account_1 = MagicMock(id="acc_1")
+        mock_account_2 = MagicMock(id="acc_2")
+
+        mock_accounts_result = MagicMock()
+        mock_accounts_result.scalars.return_value.all.return_value = [
+            mock_account_1, mock_account_2
+        ]
 
         mock_status = MagicMock(spec=BudgetStatus)
         mock_status.category = "Eating Out"
@@ -199,6 +240,55 @@ class TestBudgetCheckIntegration:
         mock_status.percentage = 90.0
         mock_status.status = "warning"
 
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_accounts_result
+
+        with patch("app.services.scheduler.BudgetService") as MockBudgetService:
+            mock_budget = AsyncMock()
+            mock_budget.get_all_budget_statuses.return_value = [mock_status]
+            MockBudgetService.return_value = mock_budget
+
+            with patch("app.services.scheduler.SlackService") as MockSlackService:
+                mock_slack = AsyncMock()
+                MockSlackService.return_value = mock_slack
+
+                with patch("app.services.scheduler.get_settings") as mock_settings:
+                    mock_settings.return_value = MagicMock(slack_webhook_url="https://test")
+
+                    with patch("app.database.get_session") as mock_get_session:
+                        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+                        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+
+                        await check_budget_alerts()
+
+                        # Should be called once for each account
+                        assert mock_budget.get_all_budget_statuses.call_count == 2
+                        # Verify account_id was passed correctly
+                        calls = mock_budget.get_all_budget_statuses.call_args_list
+                        assert calls[0].args[0] == "acc_1"
+                        assert calls[1].args[0] == "acc_2"
+
+    @pytest.mark.asyncio
+    async def test_budget_alert_sends_slack_warning(self) -> None:
+        """Budget check should send Slack warning for 80%+ usage."""
+        from app.services.scheduler import check_budget_alerts
+        from app.services.budget import BudgetStatus
+
+        mock_account = MagicMock(id="acc_1")
+
+        mock_accounts_result = MagicMock()
+        mock_accounts_result.scalars.return_value.all.return_value = [mock_account]
+
+        mock_status = MagicMock(spec=BudgetStatus)
+        mock_status.category = "Eating Out"
+        mock_status.amount = 20000
+        mock_status.spent = 18000
+        mock_status.percentage = 90.0
+        mock_status.status = "warning"
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_accounts_result
+
         with patch("app.services.scheduler.BudgetService") as MockBudgetService:
             mock_service = AsyncMock()
             mock_service.get_all_budget_statuses.return_value = [mock_status]
@@ -211,16 +301,24 @@ class TestBudgetCheckIntegration:
                 with patch("app.services.scheduler.get_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(slack_webhook_url="https://test")
 
-                    await check_budget_alerts()
+                    with patch("app.database.get_session") as mock_get_session:
+                        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+                        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                    mock_slack.notify_budget_warning.assert_called_once()
+                        await check_budget_alerts()
+
+                        mock_slack.notify_budget_warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_budget_alert_sends_slack_exceeded(self) -> None:
         """Budget check should send Slack alert for 100%+ usage."""
         from app.services.scheduler import check_budget_alerts
         from app.services.budget import BudgetStatus
-        from datetime import date
+
+        mock_account = MagicMock(id="acc_1")
+
+        mock_accounts_result = MagicMock()
+        mock_accounts_result.scalars.return_value.all.return_value = [mock_account]
 
         mock_status = MagicMock(spec=BudgetStatus)
         mock_status.category = "Entertainment"
@@ -229,6 +327,9 @@ class TestBudgetCheckIntegration:
         mock_status.percentage = 125.0
         mock_status.status = "over"
 
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_accounts_result
+
         with patch("app.services.scheduler.BudgetService") as MockBudgetService:
             mock_service = AsyncMock()
             mock_service.get_all_budget_statuses.return_value = [mock_status]
@@ -241,6 +342,10 @@ class TestBudgetCheckIntegration:
                 with patch("app.services.scheduler.get_settings") as mock_settings:
                     mock_settings.return_value = MagicMock(slack_webhook_url="https://test")
 
-                    await check_budget_alerts()
+                    with patch("app.database.get_session") as mock_get_session:
+                        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+                        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                    mock_slack.notify_budget_exceeded.assert_called_once()
+                        await check_budget_alerts()
+
+                        mock_slack.notify_budget_exceeded.assert_called_once()
