@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Sync configuration
     sync_interval_hours: int = 24
 
+    # CORS origins (comma-separated, defaults to common local development origins)
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost"
+
     # Slack (optional - webhook only needed for notifications)
     slack_webhook_url: str | None = None
     slack_client_id: str | None = None

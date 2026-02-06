@@ -49,15 +49,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware - allow frontend origins for development and production
+    # CORS middleware - origins configurable via CORS_ORIGINS env var
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",  # React dev server (old)
-            "http://localhost:5173",  # Vite dev server
-            "http://localhost:80",    # Docker frontend
-            "http://localhost",       # Docker frontend (no port)
-        ],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
