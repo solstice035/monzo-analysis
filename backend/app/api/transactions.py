@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_session
 from app.models import Transaction as TransactionModel
@@ -131,6 +132,7 @@ async def update_transaction(
             if tx.raw_payload is None:
                 tx.raw_payload = {}
             tx.raw_payload["notes"] = data.notes
+            flag_modified(tx, "raw_payload")
 
         await session.commit()
         await session.refresh(tx)

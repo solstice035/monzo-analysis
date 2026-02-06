@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import get_session
 from app.services.budget import BudgetService
@@ -41,7 +41,7 @@ class BudgetCreate(BaseModel):
     category: str
     amount: int
     period: Literal["monthly", "weekly"] = "monthly"
-    start_day: int = 1
+    start_day: int = Field(default=1, ge=1, le=28)
     # Sinking fund fields
     name: str | None = None
     group_id: str | None = None
@@ -57,7 +57,7 @@ class BudgetUpdate(BaseModel):
     category: str | None = None
     amount: int | None = None
     period: Literal["monthly", "weekly"] | None = None
-    start_day: int | None = None
+    start_day: int | None = Field(default=None, ge=1, le=28)
     # Sinking fund fields
     name: str | None = None
     group_id: str | None = None
@@ -262,8 +262,8 @@ async def import_budgets_csv(
         existing_budgets = await service.get_all_budgets(account_id)
         existing_categories = {b.category.lower() for b in existing_budgets}
 
-        for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is 1)
-            try:
+        try:
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is 1)
                 category = row.get("category", "").strip()
                 if not category:
                     errors.append(f"Row {row_num}: Missing category")
@@ -306,7 +306,14 @@ async def import_budgets_csv(
                 existing_categories.add(category.lower())
                 imported += 1
 
-            except Exception as e:
-                errors.append(f"Row {row_num}: {str(e)}")
+            # Commit all at once — atomic import
+            await session.commit()
+
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Import failed, all changes rolled back: {str(e)}",
+            )
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
