@@ -33,7 +33,7 @@ def matches_rule(transaction: dict[str, Any], rule: CategoryRule) -> bool:
 
     conditions = rule.conditions or {}
 
-    # Check merchant pattern
+    # Check merchant pattern (substring, case-insensitive)
     merchant_pattern = conditions.get("merchant_pattern")
     if merchant_pattern:
         merchant = transaction.get("merchant") or {}
@@ -41,6 +41,16 @@ def matches_rule(transaction: dict[str, Any], rule: CategoryRule) -> bool:
         if not merchant_name:
             return False
         if merchant_pattern.lower() not in merchant_name.lower():
+            return False
+
+    # Check exact merchant name match (case-insensitive)
+    merchant_exact = conditions.get("merchant_exact")
+    if merchant_exact:
+        merchant = transaction.get("merchant") or {}
+        merchant_name = merchant.get("name") if isinstance(merchant, dict) else None
+        if not merchant_name:
+            return False
+        if merchant_name.lower() != merchant_exact.lower():
             return False
 
     # Check amount minimum (amounts are negative for spending)
@@ -67,6 +77,20 @@ def matches_rule(transaction: dict[str, Any], rule: CategoryRule) -> bool:
     if monzo_category:
         tx_category = transaction.get("category")
         if tx_category != monzo_category:
+            return False
+
+    # Check day of week (0=Monday, 6=Sunday)
+    day_of_week = conditions.get("day_of_week")
+    if day_of_week is not None:
+        created = transaction.get("created")
+        if not created:
+            return False
+        from datetime import datetime
+        try:
+            tx_date = datetime.fromisoformat(created)
+            if tx_date.weekday() != day_of_week:
+                return False
+        except (ValueError, TypeError):
             return False
 
     return True
@@ -231,15 +255,22 @@ class RulesService:
             rule.enabled = enabled
 
         # Update conditions if any condition fields provided
+        # Empty string clears a string condition; None means "don't change"
         conditions = dict(rule.conditions)
-        if merchant_pattern is not None:
-            conditions["merchant_pattern"] = merchant_pattern
+        for key, value in [
+            ("merchant_pattern", merchant_pattern),
+            ("monzo_category", monzo_category),
+        ]:
+            if value is None:
+                continue
+            if value == "":
+                conditions.pop(key, None)
+            else:
+                conditions[key] = value
         if amount_min is not None:
             conditions["amount_min"] = amount_min
         if amount_max is not None:
             conditions["amount_max"] = amount_max
-        if monzo_category is not None:
-            conditions["monzo_category"] = monzo_category
         rule.conditions = conditions
 
         return rule

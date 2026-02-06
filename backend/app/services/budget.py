@@ -64,6 +64,36 @@ def get_current_period(
     return start, end
 
 
+def calculate_sinking_fund_months(
+    target_month: int,
+    reference_date: date,
+) -> tuple[int, int]:
+    """Calculate months elapsed and remaining in a sinking fund contribution period.
+
+    A sinking fund contributes monthly toward an annual target. The contribution
+    period runs from target_month of one year to target_month of the next.
+
+    Args:
+        target_month: Month when the expense is due (1-12)
+        reference_date: Date to calculate from
+
+    Returns:
+        Tuple of (months_elapsed, months_remaining), each clamped to 0-12
+    """
+    current_month = reference_date.month
+
+    if current_month >= target_month:
+        # Contributing for next year's target
+        months_elapsed = current_month - target_month
+    else:
+        # Contributing for this year's target
+        months_elapsed = 12 - target_month + current_month
+
+    months_elapsed = max(1, min(months_elapsed, 12))
+    months_remaining = max(0, 12 - months_elapsed)
+    return months_elapsed, months_remaining
+
+
 @dataclass
 class BudgetStatus:
     """Status of a budget for a period."""
@@ -280,20 +310,17 @@ class BudgetService:
         )
 
         result = await self._session.execute(
-            select(Transaction).where(
+            select(func.sum(Transaction.amount)).where(
                 and_(
                     Transaction.account_id == budget.account_id,
                     Transaction.custom_category == budget.category,
                     Transaction.created_at >= period_start,
                     Transaction.created_at <= period_end,
+                    Transaction.amount < 0,
                 )
             )
         )
-        transactions = result.scalars().all()
-
-        # Sum absolute values of negative amounts (spending)
-        total = sum(abs(tx.amount) for tx in transactions if tx.amount < 0)
-        return total
+        return abs(result.scalar() or 0)
 
     async def get_budget_status(
         self,
@@ -462,31 +489,10 @@ class BudgetService:
         if not budget.is_sinking_fund:
             raise ValueError("Budget is not a sinking fund")
 
-        # Calculate months since the start of the year (or since target_month of previous year)
         target_month = budget.target_month or 12  # Default to December
-
-        # Determine the contribution period start
-        # If we're past the target month, we're contributing for next year
-        current_year = reference_date.year
-        current_month = reference_date.month
-
-        if current_month >= target_month:
-            # Contributing for next year's target
-            period_start_year = current_year
-            target_year = current_year + 1
-        else:
-            # Contributing for this year's target
-            period_start_year = current_year - 1
-            target_year = current_year
-
-        # Months elapsed in the contribution period
-        months_elapsed = (reference_date.year - period_start_year) * 12 + reference_date.month - target_month
-        if months_elapsed < 0:
-            months_elapsed += 12
-        months_elapsed = max(1, min(months_elapsed, 12))  # Clamp to 1-12
-
-        # Months remaining until target
-        months_remaining = max(0, 12 - months_elapsed)
+        months_elapsed, months_remaining = calculate_sinking_fund_months(
+            target_month, reference_date
+        )
 
         # Monthly contribution target
         monthly_contribution = budget.monthly_contribution

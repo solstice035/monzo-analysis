@@ -9,6 +9,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Budget, Pot, Transaction
+from app.services.budget import calculate_sinking_fund_months
 
 
 @dataclass
@@ -234,26 +235,15 @@ class PotService:
 
         # Calculate contribution period
         target_month = budget.target_month or 12
-        current_year = reference_date.year
-        current_month = reference_date.month
-
-        if current_month >= target_month:
-            period_start_year = current_year
-            period_start_month = target_month
-        else:
-            period_start_year = current_year - 1
-            period_start_month = target_month
-
-        period_start = date(period_start_year, period_start_month, 1)
-
-        # Months elapsed in contribution period
-        months_elapsed = (reference_date.year - period_start.year) * 12 + (
-            reference_date.month - period_start.month
+        months_elapsed, months_remaining = calculate_sinking_fund_months(
+            target_month, reference_date
         )
-        months_elapsed = max(1, min(months_elapsed + 1, 12))  # 1-12 range
 
-        # Months remaining until target
-        months_remaining = max(0, 12 - months_elapsed)
+        # Build period_start for querying contribution history
+        if reference_date.month >= target_month:
+            period_start = date(reference_date.year, target_month, 1)
+        else:
+            period_start = date(reference_date.year - 1, target_month, 1)
 
         # Get contribution history for this period
         contributions = []

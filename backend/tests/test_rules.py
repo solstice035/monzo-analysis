@@ -1,6 +1,6 @@
 """Tests for category rules engine."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -416,3 +416,125 @@ class TestRulesService:
 
         assert result is False
         mock_session.delete.assert_not_called()
+
+
+class TestMerchantExactCondition:
+    """Tests for the merchant_exact condition type."""
+
+    def test_exact_match(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"merchant_exact": "Tesco"}
+        rule.enabled = True
+
+        tx = {"merchant": {"name": "Tesco"}, "amount": -1500, "category": "groceries"}
+        assert matches_rule(tx, rule) is True
+
+    def test_exact_match_case_insensitive(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"merchant_exact": "tesco"}
+        rule.enabled = True
+
+        tx = {"merchant": {"name": "TESCO"}, "amount": -1500, "category": "groceries"}
+        assert matches_rule(tx, rule) is True
+
+    def test_exact_no_match_substring(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"merchant_exact": "Tesco"}
+        rule.enabled = True
+
+        tx = {"merchant": {"name": "Tesco Express"}, "amount": -1500, "category": "groceries"}
+        assert matches_rule(tx, rule) is False
+
+
+class TestDayOfWeekCondition:
+    """Tests for the day_of_week condition type."""
+
+    def test_matches_correct_day(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"day_of_week": 0}  # Monday
+        rule.enabled = True
+
+        # 2025-01-06 is a Monday
+        tx = {"created": "2025-01-06T12:00:00Z", "amount": -500, "category": "general"}
+        assert matches_rule(tx, rule) is True
+
+    def test_no_match_wrong_day(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"day_of_week": 0}  # Monday
+        rule.enabled = True
+
+        # 2025-01-07 is a Tuesday
+        tx = {"created": "2025-01-07T12:00:00Z", "amount": -500, "category": "general"}
+        assert matches_rule(tx, rule) is False
+
+    def test_no_match_missing_created(self) -> None:
+        from app.services.rules import matches_rule
+
+        rule = MagicMock()
+        rule.conditions = {"day_of_week": 4}  # Friday
+        rule.enabled = True
+
+        tx = {"amount": -500, "category": "general"}
+        assert matches_rule(tx, rule) is False
+
+
+class TestRuleClearConditions:
+    """Tests for clearing rule conditions via empty string."""
+
+    @pytest.mark.asyncio
+    async def test_clear_merchant_pattern(self) -> None:
+        from app.services.rules import RulesService
+
+        existing_rule = MagicMock()
+        existing_rule.id = "rule_123"
+        existing_rule.conditions = {"merchant_pattern": "Tesco", "monzo_category": "groceries"}
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_rule
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_result
+
+        service = RulesService(mock_session)
+        updated = await service.update_rule(rule_id="rule_123", merchant_pattern="")
+
+        assert "merchant_pattern" not in updated.conditions
+        assert updated.conditions["monzo_category"] == "groceries"
+
+
+class TestSinkingFundMonths:
+    """Tests for the shared sinking fund months calculation."""
+
+    def test_past_target_month(self) -> None:
+        from app.services.budget import calculate_sinking_fund_months
+
+        # Reference: March, target: January → 2 months elapsed
+        elapsed, remaining = calculate_sinking_fund_months(1, date(2025, 3, 15))
+        assert elapsed == 2
+        assert remaining == 10
+
+    def test_before_target_month(self) -> None:
+        from app.services.budget import calculate_sinking_fund_months
+
+        # Reference: March, target: June → 9 months elapsed (Jun→Mar = 9)
+        elapsed, remaining = calculate_sinking_fund_months(6, date(2025, 3, 15))
+        assert elapsed == 9
+        assert remaining == 3
+
+    def test_on_target_month(self) -> None:
+        from app.services.budget import calculate_sinking_fund_months
+
+        # Reference: June, target: June → 0 → clamped to 1
+        elapsed, remaining = calculate_sinking_fund_months(6, date(2025, 6, 15))
+        assert elapsed == 1  # Minimum 1
+        assert remaining == 11

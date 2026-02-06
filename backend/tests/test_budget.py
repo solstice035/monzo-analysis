@@ -83,22 +83,16 @@ class TestBudgetSpendCalculation:
         budget.start_day = 1
         budget.amount = 30000  # £300
 
-        # Mock returns only transactions that match the DB query
-        # (DB filters by category, code just sums)
-        transactions = [
-            MagicMock(custom_category="Groceries", amount=-5000),  # £50
-            MagicMock(custom_category="Groceries", amount=-7500),  # £75
-        ]
-
+        # Mock SQL SUM result: -5000 + -7500 = -12500
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = transactions
+        mock_result.scalar.return_value = -12500
         mock_session.execute.return_value = mock_result
 
         service = BudgetService(mock_session)
         spend = await service.calculate_spend(budget, date(2025, 1, 15))
 
-        # Only Groceries transactions: 5000 + 7500 = 12500
+        # abs(-12500) = 12500
         assert spend == 12500
 
     @pytest.mark.asyncio
@@ -112,9 +106,10 @@ class TestBudgetSpendCalculation:
         budget.start_day = 1
         budget.amount = 30000
 
+        # Mock SQL SUM result: None (no matching rows)
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = None
         mock_session.execute.return_value = mock_result
 
         service = BudgetService(mock_session)
