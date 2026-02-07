@@ -60,6 +60,7 @@ services:
       MONZO_CLIENT_SECRET: ${MONZO_CLIENT_SECRET:?MONZO_CLIENT_SECRET required}
       MONZO_REDIRECT_URI: ${MONZO_REDIRECT_URI:-http://localhost:8000/api/v1/auth/callback}
       MONZO_OWNER_ID: ${MONZO_OWNER_ID:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:80,http://localhost}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       SYNC_SCHEDULE_HOUR: ${SYNC_SCHEDULE_HOUR:-6}
       SYNC_SCHEDULE_MINUTE: ${SYNC_SCHEDULE_MINUTE:-0}

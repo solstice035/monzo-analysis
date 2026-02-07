@@ -626,3 +626,74 @@ class TestSyncRulesIntegration:
             assert count == 1
             # No categorise_transaction call since no rules
             # And the UPDATE for custom_category should NOT have been called
+
+
+class TestSyncBalance:
+    """Tests for the _sync_balance method."""
+
+    @pytest.mark.asyncio
+    async def test_sync_balance_updates_account(self) -> None:
+        """_sync_balance should store balance and spend_today on the account."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_account = MagicMock()
+        mock_account.monzo_id = "acc_123"
+        mock_account.balance = 0
+        mock_account.spend_today = 0
+
+        with patch(
+            "app.services.sync.fetch_balance",
+            new_callable=AsyncMock,
+            return_value={"balance": 150000, "spend_today": -2500},
+        ):
+            await service._sync_balance("test_token", mock_account)
+
+        assert mock_account.balance == 150000
+        assert mock_account.spend_today == -2500
+
+    @pytest.mark.asyncio
+    async def test_sync_balance_handles_api_error(self) -> None:
+        """_sync_balance should log warning and not crash on API error."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_account = MagicMock()
+        mock_account.monzo_id = "acc_123"
+        mock_account.balance = 99999
+
+        with patch(
+            "app.services.sync.fetch_balance",
+            new_callable=AsyncMock,
+            side_effect=Exception("API timeout"),
+        ):
+            # Should not raise
+            await service._sync_balance("test_token", mock_account)
+
+        # Balance should remain unchanged
+        assert mock_account.balance == 99999
+
+    @pytest.mark.asyncio
+    async def test_sync_balance_defaults_missing_fields(self) -> None:
+        """_sync_balance should default to 0 for missing fields."""
+        from app.services.sync import SyncService
+
+        mock_session = AsyncMock()
+        service = SyncService(mock_session)
+
+        mock_account = MagicMock()
+        mock_account.monzo_id = "acc_123"
+
+        with patch(
+            "app.services.sync.fetch_balance",
+            new_callable=AsyncMock,
+            return_value={},  # Empty response
+        ):
+            await service._sync_balance("test_token", mock_account)
+
+        assert mock_account.balance == 0
+        assert mock_account.spend_today == 0

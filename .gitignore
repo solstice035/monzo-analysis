@@ -13,7 +13,7 @@ docs/budget/
 
 # Test artifacts
 frontend/test-results/
-test_*.py
+frontend/playwright-report/
 
 # Frontend
 node_modules/
