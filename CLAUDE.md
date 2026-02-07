@@ -289,6 +289,7 @@ Configured in `.env` (not committed):
 | `SLACK_CLIENT_ID` | App client ID (for future OAuth features) |
 | `SLACK_CLIENT_SECRET` | App client secret |
 | `SLACK_SIGNING_SECRET` | Request signature verification |
+| `CORS_ORIGINS` | Comma-separated allowed CORS origins (default: localhost) |
 
 ### Slack Webhook Setup
 
@@ -344,6 +345,8 @@ curl -X POST -H 'Content-Type: application/json' \
 | First Live Sync | ✅ Complete | 2026-01-19 |
 | Multi-Account Support | ✅ Complete | 2026-01-19 |
 | Budget Redesign Phase 1 | ✅ Complete | 2026-01-20 |
+| Code Review Fixes | ✅ Complete | 2026-02-07 |
+| Test Coverage | ✅ Complete | 2026-02-07 |
 
 ---
 
@@ -413,12 +416,13 @@ Access the app at http://localhost
 | Multi-Account | Global account selector with per-account data | `frontend/src/contexts/AccountContext.tsx` |
 | Budget Groups | Hierarchical budget organization with roll-ups | `backend/app/services/budget_groups.py` |
 | Sinking Funds | Annual/quarterly budgets with contribution tracking | `backend/app/services/budget.py` |
+| E2E Tests | Playwright browser tests with mocked API | `frontend/e2e/app.spec.ts` |
 
 ### Known Issues
 
 See [docs/CodeReview/CODE_REVIEW_CONSOLIDATED.md](docs/CodeReview/CODE_REVIEW_CONSOLIDATED.md) for all findings:
-- **CRITICAL:** Token refresh not called, scheduler missing account filter, no sync pagination
-- **7 items DONE** (N+1 query, Slack logging, DB ports, engine singleton, app init, account switch, mutation scoping)
+- **34 of 38 items DONE**
+- **5 LOW items remaining:** L5 (rate limiting), L6 (input validation), L8 (structured logging), L15 (API versioning), L16 (health checks)
 
 See [TRD Section 13](docs/TRD.md#13-implementation-phases) for detailed phase breakdown.
 
