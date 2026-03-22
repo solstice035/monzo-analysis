@@ -285,23 +285,25 @@ class TestGetOverBudgetEnvelopes:
 
         periods = []
         for i in range(6):
-            month = 1 + i
-            p = _make_period(account_id, date(2025, month + 6, 28), date(2025, month + 7, 27))
+            # Use dates that don't overflow month 12
+            start_date = date(2025, 1 + i, 28)
+            end_date = date(2025, 2 + i, 27)
+            p = _make_period(account_id, start_date, end_date)
             periods.append(p)
 
-        # Build side_effects: periods query, then per-period: envelopes, budget, group, spent
+        # Build side_effects: periods query, then per-period: envelopes, budget, spent, [group on first]
         side_effects = [_mock_execute_result(scalars_all=periods)]
 
         for i, period in enumerate(periods):
             eb = _make_envelope(budget_id, period.id, allocated=20000)
             # Over budget in 4 of 6 periods
             spent = -25000 if i < 4 else -15000
-            side_effects.extend([
-                _mock_execute_result(scalars_all=[eb]),
-                _mock_execute_result(scalar_one_or_none=budget),
-                _mock_execute_result(scalar_one_or_none=group),
-                _mock_execute_result(scalar=spent),
-            ])
+            side_effects.append(_mock_execute_result(scalars_all=[eb]))
+            side_effects.append(_mock_execute_result(scalar_one_or_none=budget))
+            side_effects.append(_mock_execute_result(scalar=spent))
+            if i == 0:
+                # Group is only fetched on first encounter of this budget_id
+                side_effects.append(_mock_execute_result(scalar_one_or_none=group))
 
         mock_session.execute.side_effect = side_effects
 
@@ -325,7 +327,9 @@ class TestGetOverBudgetEnvelopes:
 
         periods = []
         for i in range(6):
-            p = _make_period(account_id, date(2025, i + 7, 28), date(2025, i + 8, 27))
+            start_date = date(2025, 1 + i, 28)
+            end_date = date(2025, 2 + i, 27)
+            p = _make_period(account_id, start_date, end_date)
             periods.append(p)
 
         side_effects = [_mock_execute_result(scalars_all=periods)]
@@ -333,12 +337,11 @@ class TestGetOverBudgetEnvelopes:
         for i, period in enumerate(periods):
             eb = _make_envelope(budget_id, period.id, allocated=30000)
             spent = -35000 if i < 2 else -20000  # Over budget only 2/6
-            side_effects.extend([
-                _mock_execute_result(scalars_all=[eb]),
-                _mock_execute_result(scalar_one_or_none=budget),
-                _mock_execute_result(scalar_one_or_none=group),
-                _mock_execute_result(scalar=spent),
-            ])
+            side_effects.append(_mock_execute_result(scalars_all=[eb]))
+            side_effects.append(_mock_execute_result(scalar_one_or_none=budget))
+            side_effects.append(_mock_execute_result(scalar=spent))
+            if i == 0:
+                side_effects.append(_mock_execute_result(scalar_one_or_none=group))
 
         mock_session.execute.side_effect = side_effects
 
