@@ -2,7 +2,9 @@
  * API client for the Monzo Analysis backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL so requests proxy through nginx (avoids CSP cross-origin issues).
+// Set VITE_API_URL env var only when running `npm run dev` locally (e.g. http://localhost:8200).
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 /**
  * Custom error class for API errors.
