@@ -1,18 +1,13 @@
 import { useState, useMemo } from "react";
 import { TopBar } from "@/components/layout";
-import { TransactionRowV2 } from "@/components/ui/transaction-row-v2";
-import { useTransactions, useUpdateTransaction } from "@/hooks/useApi";
+import { TransactionFilterBar } from "@/components/ui/transaction-filter-bar";
+import { DateGroupHeader } from "@/components/ui/date-group-header";
+import { InlineCategoryEdit } from "@/components/ui/inline-category-edit";
+import { getCategoryIcon } from "@/lib/category-icons";
+import { cn, formatCurrency, formatRelativeDate } from "@/lib/utils";
+import { useTransactions, useUpdateTransaction, useCreateRule } from "@/hooks/useApi";
+import { useAccount } from "@/contexts/AccountContext";
 import { Button } from "@/components/ui/button";
-
-const categories = [
-  "All",
-  "groceries",
-  "eating_out",
-  "transport",
-  "shopping",
-  "entertainment",
-  "bills",
-];
 
 const PAGE_SIZE = 50;
 
@@ -41,16 +36,14 @@ function getDateGroupLabel(dateStr: string): string {
     a.getMonth() === b.getMonth() &&
     a.getFullYear() === b.getFullYear();
 
-  if (isSameDay(txDate, today)) return "TODAY";
-  if (isSameDay(txDate, yesterday)) return "YESTERDAY";
+  if (isSameDay(txDate, today)) return "Today";
+  if (isSameDay(txDate, yesterday)) return "Yesterday";
 
-  return txDate
-    .toLocaleDateString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "long",
-    })
-    .toUpperCase();
+  return txDate.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+  });
 }
 
 interface GroupedTransactions {
@@ -67,6 +60,7 @@ interface GroupedTransactions {
 }
 
 export function Transactions() {
+  const { selectedAccount } = useAccount();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -74,6 +68,7 @@ export function Transactions() {
   const [pageOffset, setPageOffset] = useState(0);
 
   const updateTransaction = useUpdateTransaction();
+  const createRule = useCreateRule();
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -123,6 +118,18 @@ export function Transactions() {
     });
   };
 
+  const handleCreateRule = (merchant: string, category: string) => {
+    if (!selectedAccount) return;
+    createRule.mutate({
+      account_id: selectedAccount.id,
+      name: `Auto: ${merchant} → ${category}`,
+      conditions: { merchant_name: merchant },
+      target_category: category,
+      priority: 0,
+      enabled: true,
+    });
+  };
+
   const handlePrevMonth = () => {
     setMonthOffset((m) => m - 1);
     setPageOffset(0);
@@ -143,63 +150,22 @@ export function Transactions() {
         showSync={false}
       />
 
-      {/* Search */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search by merchant..."
-          value={searchQuery}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-2 rounded-xl bg-navy-deep border border-navy-mid text-white placeholder-stone focus:outline-none focus:border-coral transition-colors"
-        />
-      </div>
+      {/* Compact filter bar */}
+      <TransactionFilterBar
+        monthLabel={monthRange.label}
+        monthOffset={monthOffset}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+        selectedCategory={selectedCategory}
+        onCategoryChange={(cat) => {
+          setSelectedCategory(cat);
+          setPageOffset(0);
+        }}
+      />
 
-      {/* Month navigation */}
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={handlePrevMonth}
-          className="px-3 py-1 rounded-lg bg-navy-mid text-stone hover:text-white transition-colors"
-        >
-          ← Prev
-        </button>
-        <span
-          className="text-white text-lg"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {monthRange.label}
-        </span>
-        <button
-          onClick={handleNextMonth}
-          disabled={monthOffset >= 0}
-          className={`px-3 py-1 rounded-lg bg-navy-mid transition-colors ${
-            monthOffset >= 0 ? "text-navy-mid cursor-not-allowed" : "text-stone hover:text-white"
-          }`}
-        >
-          Next →
-        </button>
-      </div>
-
-      {/* Category filters */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => {
-              setSelectedCategory(cat);
-              setPageOffset(0);
-            }}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all capitalize ${
-              cat === selectedCategory
-                ? "bg-coral text-white"
-                : "bg-navy-mid text-stone hover:text-white hover:bg-navy-deep"
-            }`}
-          >
-            {cat === "All" ? "All" : cat.replace(/_/g, " ")}
-          </button>
-        ))}
-      </div>
-
-      {/* Transaction list — date-grouped, full-width */}
+      {/* Transaction list — date-grouped, no card wrapper */}
       <div className="rounded-xl border border-navy-mid overflow-hidden bg-navy">
         {isLoading && (
           <div className="text-center py-12 text-stone">Loading transactions...</div>
@@ -222,32 +188,55 @@ export function Transactions() {
 
         {groupedTransactions.map((group) => (
           <div key={group.label}>
-            {/* Date group header */}
-            <div className="flex items-center justify-between px-4 py-2 bg-charcoal/60 border-b border-navy-mid sticky top-0 z-10">
-              <span className="text-xs font-bold text-stone uppercase tracking-wider">
-                {group.label}
-              </span>
-              <span
-                className="text-xs text-stone tabular-nums"
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                {group.total < 0 ? "-" : "+"}£
-                {(Math.abs(group.total) / 100).toFixed(2)}
-              </span>
-            </div>
+            <DateGroupHeader label={group.label} dayTotal={group.total} />
 
-            {/* Transactions in this date group */}
-            {group.transactions.map((tx) => (
-              <TransactionRowV2
-                key={tx.id}
-                id={tx.id}
-                merchant={tx.merchant_name || "Unknown"}
-                category={tx.custom_category || tx.monzo_category || "general"}
-                amount={tx.amount}
-                date={tx.created_at}
-                onCategoryChange={handleCategoryChange}
-              />
-            ))}
+            {group.transactions.map((tx) => {
+              const category = tx.custom_category || tx.monzo_category || "general";
+              const Icon = getCategoryIcon(category);
+              const isExpense = tx.amount < 0;
+
+              return (
+                <div
+                  key={tx.id}
+                  className="grid items-center py-2 px-3 border-b border-navy-mid/20 hover:bg-navy-deep/20 transition-colors group"
+                  style={{ gridTemplateColumns: "28px 1fr auto" }}
+                >
+                  {/* Icon */}
+                  <div className="w-7 h-7 rounded-lg bg-navy-mid/30 flex items-center justify-center">
+                    <Icon size={14} strokeWidth={1.5} className="text-stone" />
+                  </div>
+
+                  {/* Merchant + category */}
+                  <div className="pl-3 min-w-0">
+                    <div className="text-sm font-medium text-white truncate">
+                      {tx.merchant_name || "Unknown"}
+                    </div>
+                    <div className="text-xs text-stone flex items-center gap-1.5">
+                      <InlineCategoryEdit
+                        category={category}
+                        merchant={tx.merchant_name || undefined}
+                        onSave={(cat) => handleCategoryChange(tx.id, cat)}
+                        onCreateRule={handleCreateRule}
+                      />
+                      <span className="text-navy-mid">·</span>
+                      <span>{formatRelativeDate(tx.created_at)}</span>
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div
+                    className={cn(
+                      "text-sm font-medium tabular-nums pl-4",
+                      isExpense ? "text-coral" : "text-mint"
+                    )}
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {isExpense ? "-" : "+"}
+                    {formatCurrency(Math.abs(tx.amount))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ))}
 
