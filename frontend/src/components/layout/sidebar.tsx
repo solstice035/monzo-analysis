@@ -5,8 +5,12 @@ import {
   Receipt,
   PiggyBank,
   Settings,
-  Workflow,
+
   RefreshCw,
+  TrendingUp,
+  CalendarDays,
+  ClipboardCheck,
+  Store,
 } from "lucide-react";
 import { useSyncStatus, useBudgetGroupStatuses } from "@/hooks/useApi";
 import { useMemo } from "react";
@@ -15,8 +19,11 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: Receipt, badge: "8" },
   { to: "/budgets", label: "Budgets", icon: PiggyBank },
+  { to: "/trends", label: "Trends", icon: TrendingUp },
+  { to: "/annual", label: "Annual", icon: CalendarDays },
   { to: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
-  { to: "/rules", label: "Rules", icon: Workflow },
+  { to: "/rules", label: "Merchants", icon: Store },
+  { to: "/review", label: "Review", icon: ClipboardCheck },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

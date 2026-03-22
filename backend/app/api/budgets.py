@@ -218,6 +218,36 @@ async def get_budget_statuses(
         ]
 
 
+class MergeRequest(BaseModel):
+    """Request model for merging budgets."""
+
+    target_budget_id: str
+
+
+@router.post("/{budget_id}/merge", status_code=200)
+async def merge_budget(budget_id: str, data: MergeRequest) -> dict[str, Any]:
+    """Merge source budget into target. Reassigns transactions and rules, soft-deletes source."""
+    async with get_session() as session:
+        service = BudgetService(session)
+        result = await service.merge_budget(budget_id, data.target_budget_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Budget not found")
+        await session.commit()
+        return {"merged": True, "source_id": budget_id, "target_id": data.target_budget_id}
+
+
+@router.post("/{budget_id}/restore", status_code=200)
+async def restore_budget(budget_id: str) -> dict[str, Any]:
+    """Restore a soft-deleted budget."""
+    async with get_session() as session:
+        service = BudgetService(session)
+        result = await service.restore_budget(budget_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Budget not found or not archived")
+        await session.commit()
+        return {"restored": True, "budget_id": budget_id}
+
+
 class ImportResult(BaseModel):
     """Result of CSV import operation."""
 

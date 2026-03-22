@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,12 +12,19 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.account import Account
+    from app.models.budget import Budget
 
 
 class Transaction(Base, TimestampMixin):
     """Represents a Monzo transaction."""
 
     __tablename__ = "transactions"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status IN ('pending', 'confirmed', 'excluded') OR review_status IS NULL",
+            name="ck_transactions_review_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
@@ -56,9 +63,23 @@ class Transaction(Base, TimestampMixin):
         JSON,
         nullable=True,
     )
+    budget_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("budgets.id"),
+        nullable=True,
+        index=True,
+    )
+    review_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        default=None,
+    )
 
-    # Relationship
+    # Relationships
     account: Mapped["Account"] = relationship(
         "Account",
         back_populates="transactions",
+    )
+    budget: Mapped["Budget | None"] = relationship(
+        "Budget",
+        foreign_keys=[budget_id],
     )

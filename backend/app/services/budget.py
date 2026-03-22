@@ -7,10 +7,10 @@ from calendar import monthrange
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Budget, Transaction
+from app.models import Budget, CategoryRule, Transaction
 
 
 def get_current_period(
@@ -270,7 +270,7 @@ class BudgetService:
         return budget
 
     async def delete_budget(self, budget_id: str) -> bool:
-        """Delete a budget.
+        """Soft-delete a budget by setting deleted_at.
 
         Args:
             budget_id: ID of budget to delete
@@ -278,6 +278,8 @@ class BudgetService:
         Returns:
             True if deleted, False if not found
         """
+        from datetime import datetime, timezone
+
         result = await self._session.execute(
             select(Budget).where(Budget.id == budget_id)
         )
@@ -286,7 +288,62 @@ class BudgetService:
         if not budget:
             return False
 
-        await self._session.delete(budget)
+        budget.deleted_at = datetime.now(timezone.utc)
+        return True
+
+    async def restore_budget(self, budget_id: str) -> bool:
+        """Restore a soft-deleted budget.
+
+        Args:
+            budget_id: ID of budget to restore
+
+        Returns:
+            True if restored, False if not found
+        """
+        result = await self._session.execute(
+            select(Budget).where(Budget.id == budget_id)
+        )
+        budget = result.scalar_one_or_none()
+
+        if not budget or budget.deleted_at is None:
+            return False
+
+        budget.deleted_at = None
+        return True
+
+    async def merge_budget(self, source_id: str, target_id: str) -> bool:
+        """Merge source budget into target: move transactions, update rules, soft-delete source.
+
+        Args:
+            source_id: ID of budget to merge from (will be soft-deleted)
+            target_id: ID of budget to merge into
+
+        Returns:
+            True if merged, False if either budget not found
+        """
+        from datetime import datetime, timezone
+
+        source = await self._session.get(Budget, source_id)
+        target = await self._session.get(Budget, target_id)
+        if not source or not target:
+            return False
+
+        # Move transactions from source to target
+        await self._session.execute(
+            update(Transaction)
+            .where(Transaction.budget_id == source.id)
+            .values(budget_id=target.id)
+        )
+
+        # Update rules pointing at source to point at target
+        await self._session.execute(
+            update(CategoryRule)
+            .where(CategoryRule.target_budget_id == source.id)
+            .values(target_budget_id=target.id)
+        )
+
+        # Soft-delete source
+        source.deleted_at = datetime.now(timezone.utc)
         return True
 
     async def calculate_spend(

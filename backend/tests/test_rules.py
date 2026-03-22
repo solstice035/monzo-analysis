@@ -418,6 +418,145 @@ class TestRulesService:
         mock_session.delete.assert_not_called()
 
 
+class TestRulesServicePhase25a:
+    """Tests for Phase 2.5a additions to RulesService."""
+
+    @pytest.mark.asyncio
+    async def test_create_rule_with_target_budget_id(self) -> None:
+        """Should create a rule with target_budget_id FK."""
+        from app.services.rules import RulesService
+        from uuid import uuid4
+
+        account_id = str(uuid4())
+        budget_id = uuid4()
+        mock_session = AsyncMock()
+
+        service = RulesService(mock_session)
+        rule = await service.create_rule(
+            account_id=account_id,
+            name="Tesco → Groceries",
+            merchant_exact="Tesco",
+            target_budget_id=budget_id,
+            priority=50,
+        )
+
+        assert rule.target_budget_id == budget_id
+        assert rule.conditions["merchant_exact"] == "Tesco"
+        assert rule.is_exclusion is False
+
+    @pytest.mark.asyncio
+    async def test_create_exclusion_rule(self) -> None:
+        """Should create an exclusion rule with no target budget."""
+        from app.services.rules import RulesService
+        from uuid import uuid4
+
+        account_id = str(uuid4())
+        mock_session = AsyncMock()
+
+        service = RulesService(mock_session)
+        rule = await service.create_rule(
+            account_id=account_id,
+            name="Savings Exclusion",
+            target_category="savings",
+            is_exclusion=True,
+            priority=50,
+        )
+
+        assert rule.is_exclusion is True
+        assert rule.target_budget_id is None
+
+    @pytest.mark.asyncio
+    async def test_update_rule_target_budget_id(self) -> None:
+        """Should update a rule's target_budget_id."""
+        from app.services.rules import RulesService
+        from uuid import uuid4
+
+        new_budget_id = uuid4()
+        existing_rule = MagicMock()
+        existing_rule.id = "rule_123"
+        existing_rule.conditions = {"merchant_exact": "Tesco"}
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_rule
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_result
+
+        service = RulesService(mock_session)
+        updated = await service.update_rule(
+            rule_id="rule_123",
+            target_budget_id=new_budget_id,
+        )
+
+        assert updated.target_budget_id == new_budget_id
+
+    @pytest.mark.asyncio
+    async def test_create_rule_with_merchant_exact(self) -> None:
+        """Should create a rule with merchant_exact in conditions."""
+        from app.services.rules import RulesService
+        from uuid import uuid4
+
+        account_id = str(uuid4())
+        mock_session = AsyncMock()
+
+        service = RulesService(mock_session)
+        rule = await service.create_rule(
+            account_id=account_id,
+            name="Costa Rule",
+            merchant_exact="Costa Coffee",
+            target_budget_id=uuid4(),
+            priority=50,
+        )
+
+        assert "merchant_exact" in rule.conditions
+        assert rule.conditions["merchant_exact"] == "Costa Coffee"
+
+    @pytest.mark.asyncio
+    async def test_update_rule_merchant_exact(self) -> None:
+        """Should update/clear merchant_exact via update_rule."""
+        from app.services.rules import RulesService
+
+        existing_rule = MagicMock()
+        existing_rule.id = "rule_123"
+        existing_rule.conditions = {"merchant_exact": "Old Merchant"}
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_rule
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_result
+
+        service = RulesService(mock_session)
+
+        # Update merchant_exact
+        updated = await service.update_rule(
+            rule_id="rule_123",
+            merchant_exact="New Merchant",
+        )
+        assert updated.conditions["merchant_exact"] == "New Merchant"
+
+    @pytest.mark.asyncio
+    async def test_clear_merchant_exact(self) -> None:
+        """Should clear merchant_exact when empty string passed."""
+        from app.services.rules import RulesService
+
+        existing_rule = MagicMock()
+        existing_rule.id = "rule_123"
+        existing_rule.conditions = {"merchant_exact": "Tesco", "monzo_category": "groceries"}
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_rule
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = mock_result
+
+        service = RulesService(mock_session)
+        updated = await service.update_rule(rule_id="rule_123", merchant_exact="")
+
+        assert "merchant_exact" not in updated.conditions
+        assert updated.conditions["monzo_category"] == "groceries"
+
+
 class TestMerchantExactCondition:
     """Tests for the merchant_exact condition type."""
 
