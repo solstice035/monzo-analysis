@@ -11,6 +11,7 @@ from app.api.auth import router as auth_router
 from app.api.budget_groups import router as budget_groups_router
 from app.api.budget_import import router as budget_import_router
 from app.api.budgets import router as budgets_router
+from app.api.envelope_dashboard import router as envelope_dashboard_router
 from app.api.review_queue import router as review_queue_router
 from app.api.dashboard import router as dashboard_router
 from app.api.pots import router as pots_router
@@ -79,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dashboard_router, prefix="/api/v1")
     app.include_router(budget_import_router, prefix="/api/v1")
     app.include_router(review_queue_router, prefix="/api/v1")
+    app.include_router(envelope_dashboard_router, prefix="/api/v1")
 
     return app
 
