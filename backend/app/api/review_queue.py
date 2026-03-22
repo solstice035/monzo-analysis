@@ -17,6 +17,16 @@ class ReviewAction(BaseModel):
 
     budget_id: str | None = None
     action: Literal["confirm", "reassign", "exclude"]
+    create_rule: bool = True
+
+
+class BulkReviewAction(BaseModel):
+    """Request model for bulk review actions."""
+
+    transaction_ids: list[str]
+    budget_id: str
+    action: Literal["confirm", "reassign"] = "reassign"
+    create_rule: bool = True
 
 
 class PendingReviewResponse(BaseModel):
@@ -86,7 +96,9 @@ async def review_transaction(
         service = ReviewQueueService(session)
 
         if data.action == "confirm":
-            tx = await service.confirm_transaction(tx_uuid, account_uuid)
+            tx = await service.confirm_transaction(
+                tx_uuid, account_uuid, create_rule=data.create_rule
+            )
         elif data.action == "reassign":
             if not data.budget_id:
                 raise HTTPException(
@@ -97,7 +109,9 @@ async def review_transaction(
                 new_budget_uuid = UUID(data.budget_id)
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid budget_id")
-            tx = await service.reassign_transaction(tx_uuid, account_uuid, new_budget_uuid)
+            tx = await service.reassign_transaction(
+                tx_uuid, account_uuid, new_budget_uuid, create_rule=data.create_rule
+            )
         elif data.action == "exclude":
             tx = await service.exclude_transaction(tx_uuid, account_uuid)
         else:
@@ -113,4 +127,47 @@ async def review_transaction(
             "budget_id": str(tx.budget_id) if tx.budget_id else None,
             "review_status": tx.review_status,
             "action": data.action,
+        }
+
+
+@router.post("/accounts/{account_id}/transactions/bulk-review")
+async def bulk_review_transactions(
+    account_id: str,
+    data: BulkReviewAction,
+) -> dict[str, Any]:
+    """Bulk review multiple transactions at once."""
+    try:
+        account_uuid = UUID(account_id)
+        budget_uuid = UUID(data.budget_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    async with get_session() as session:
+        service = ReviewQueueService(session)
+        results = []
+
+        for tx_id_str in data.transaction_ids:
+            try:
+                tx_uuid = UUID(tx_id_str)
+            except ValueError:
+                continue
+
+            if data.action == "reassign":
+                tx = await service.reassign_transaction(
+                    tx_uuid, account_uuid, budget_uuid, create_rule=data.create_rule
+                )
+            else:
+                tx = await service.confirm_transaction(
+                    tx_uuid, account_uuid, create_rule=data.create_rule
+                )
+
+            if tx:
+                results.append(str(tx.id))
+
+        await session.commit()
+
+        return {
+            "reviewed": len(results),
+            "total": len(data.transaction_ids),
+            "transaction_ids": results,
         }

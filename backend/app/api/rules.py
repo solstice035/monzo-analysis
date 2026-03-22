@@ -19,8 +19,10 @@ class CategoryRuleResponse(BaseModel):
     name: str
     conditions: dict[str, Any]
     target_category: str
+    target_budget_id: str | None = None
     priority: int
     enabled: bool
+    is_exclusion: bool = False
 
 
 class RuleCreate(BaseModel):
@@ -29,9 +31,11 @@ class RuleCreate(BaseModel):
     account_id: str
     name: str
     conditions: dict[str, Any]
-    target_category: str
+    target_category: str = ""
+    target_budget_id: str | None = None
     priority: int = 100
     enabled: bool = True
+    is_exclusion: bool = False
 
 
 class RuleUpdate(BaseModel):
@@ -40,8 +44,10 @@ class RuleUpdate(BaseModel):
     name: str | None = None
     conditions: dict[str, Any] | None = None
     target_category: str | None = None
+    target_budget_id: str | None = None
     priority: int | None = None
     enabled: bool | None = None
+    is_exclusion: bool | None = None
 
 
 @router.get("", response_model=list[CategoryRuleResponse])
@@ -59,8 +65,10 @@ async def get_rules(
                 "name": r.name,
                 "conditions": r.conditions,
                 "target_category": r.target_category,
+                "target_budget_id": str(r.target_budget_id) if r.target_budget_id else None,
                 "priority": r.priority,
                 "enabled": r.enabled,
+                "is_exclusion": r.is_exclusion,
             }
             for r in rules
         ]
@@ -79,10 +87,13 @@ async def create_rule(data: RuleCreate) -> dict[str, Any]:
             target_category=data.target_category,
             priority=data.priority,
             merchant_pattern=conditions.get("merchant_pattern"),
+            merchant_exact=conditions.get("merchant_exact"),
             amount_min=conditions.get("amount_min"),
             amount_max=conditions.get("amount_max"),
             monzo_category=conditions.get("monzo_category"),
             enabled=data.enabled,
+            target_budget_id=data.target_budget_id,
+            is_exclusion=data.is_exclusion,
         )
         return {
             "id": str(rule.id),
@@ -90,8 +101,10 @@ async def create_rule(data: RuleCreate) -> dict[str, Any]:
             "name": rule.name,
             "conditions": rule.conditions,
             "target_category": rule.target_category,
+            "target_budget_id": str(rule.target_budget_id) if rule.target_budget_id else None,
             "priority": rule.priority,
             "enabled": rule.enabled,
+            "is_exclusion": rule.is_exclusion,
         }
 
 
@@ -105,9 +118,12 @@ async def update_rule(rule_id: str, data: RuleUpdate) -> dict[str, Any]:
             rule_id=rule_id,
             name=data.name,
             target_category=data.target_category,
+            target_budget_id=data.target_budget_id,
             priority=data.priority,
             enabled=data.enabled,
+            is_exclusion=data.is_exclusion,
             merchant_pattern=conditions.get("merchant_pattern"),
+            merchant_exact=conditions.get("merchant_exact"),
             amount_min=conditions.get("amount_min"),
             amount_max=conditions.get("amount_max"),
             monzo_category=conditions.get("monzo_category"),
@@ -120,8 +136,10 @@ async def update_rule(rule_id: str, data: RuleUpdate) -> dict[str, Any]:
             "name": rule.name,
             "conditions": rule.conditions,
             "target_category": rule.target_category,
+            "target_budget_id": str(rule.target_budget_id) if rule.target_budget_id else None,
             "priority": rule.priority,
             "enabled": rule.enabled,
+            "is_exclusion": rule.is_exclusion,
         }
 
 

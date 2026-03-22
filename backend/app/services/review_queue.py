@@ -67,11 +67,12 @@ class ReviewQueueService:
         self,
         transaction_id: UUID,
         account_id: UUID,
+        create_rule: bool = True,
     ) -> Transaction | None:
         """Confirm the auto-assigned budget for a transaction.
 
-        Sets review_status='confirmed'. If no CategoryRule exists for this
-        merchant, creates one automatically.
+        Sets review_status='confirmed'. If create_rule=True and no CategoryRule
+        exists for this merchant, creates one automatically.
 
         Returns:
             Updated transaction, or None if not found.
@@ -82,8 +83,8 @@ class ReviewQueueService:
 
         tx.review_status = "confirmed"
 
-        # Auto-create rule if merchant is known
-        if tx.merchant_name and tx.budget_id:
+        # Auto-create rule if merchant is known and create_rule is True
+        if create_rule and tx.merchant_name and tx.budget_id:
             await self._ensure_category_rule(
                 account_id=account_id,
                 merchant_name=tx.merchant_name,
@@ -97,11 +98,12 @@ class ReviewQueueService:
         transaction_id: UUID,
         account_id: UUID,
         new_budget_id: UUID,
+        create_rule: bool = True,
     ) -> Transaction | None:
         """Reassign a transaction to a different budget and confirm.
 
         Updates budget_id and sets review_status='confirmed'.
-        Auto-creates/updates CategoryRule for this merchant.
+        Auto-creates/updates CategoryRule for this merchant if create_rule=True.
 
         Returns:
             Updated transaction, or None if not found.
@@ -128,7 +130,7 @@ class ReviewQueueService:
         tx.review_status = "confirmed"
 
         # Auto-create rule for this merchant → new budget's category
-        if tx.merchant_name:
+        if create_rule and tx.merchant_name:
             await self._ensure_category_rule(
                 account_id=account_id,
                 merchant_name=tx.merchant_name,

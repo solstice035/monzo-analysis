@@ -266,11 +266,12 @@ class TestBudgetServiceCRUD:
 
     @pytest.mark.asyncio
     async def test_delete_budget(self) -> None:
-        """Should delete a budget."""
+        """Should soft-delete a budget by setting deleted_at."""
         from app.services.budget import BudgetService
 
         existing_budget = MagicMock()
         existing_budget.id = "budget_123"
+        existing_budget.deleted_at = None
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing_budget
@@ -282,7 +283,7 @@ class TestBudgetServiceCRUD:
         result = await service.delete_budget("budget_123")
 
         assert result is True
-        mock_session.delete.assert_called_once_with(existing_budget)
+        assert existing_budget.deleted_at is not None
 
 
 class TestSinkingFundStatus:
