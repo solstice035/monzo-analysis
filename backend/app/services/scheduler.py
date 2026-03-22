@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 SYNC_JOB_ID = "monzo_sync"
 DIGEST_JOB_ID = "daily_digest"
 PERIOD_CLOSE_JOB_ID = "period_close"
+HEALTH_CHECK_JOB_ID = "health_check"
 
 
 def get_sync_job_id() -> str:
@@ -64,6 +65,15 @@ def create_scheduler() -> AsyncIOScheduler:
         trigger=CronTrigger(day=28, hour=6, minute=0),
         id=PERIOD_CLOSE_JOB_ID,
         name="Monthly Period Close & Rollover",
+        replace_existing=True,
+    )
+
+    # Add health check job — runs daily at 07:00 UTC
+    scheduler.add_job(
+        run_health_checks_job,
+        trigger=CronTrigger(hour=7, minute=0),
+        id=HEALTH_CHECK_JOB_ID,
+        name="Daily Health Checks",
         replace_existing=True,
     )
 
@@ -349,3 +359,30 @@ async def run_period_close() -> None:
             await slack_service.send_message(
                 f"🚨 Period close failed: {e}"
             )
+
+
+async def run_health_checks_job() -> None:
+    """Run daily health checks and alert via Slack if issues found.
+
+    Checks sync status, active periods, and pending reviews.
+    """
+    from app.database import get_session
+    from app.services.health_checks import run_health_checks
+
+    logger.info("Running daily health checks")
+    settings = get_settings()
+
+    try:
+        async with get_session() as session:
+            alerts = await run_health_checks(session)
+
+        if alerts and settings.slack_webhook_url:
+            slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+            message = "🏥 *Daily Health Check*\n" + "\n".join(alerts)
+            await slack_service.send_message(message)
+            logger.warning(f"Health check alerts: {alerts}")
+        elif not alerts:
+            logger.info("Health checks passed — all systems healthy")
+
+    except Exception as e:
+        logger.error(f"Health check job failed: {e}")
