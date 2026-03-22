@@ -239,6 +239,110 @@ export function useSinkingFundsStatus() {
   });
 }
 
+// Envelope Dashboard hooks
+export function useEnvelopeDashboard() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['envelopeDashboard', accountId],
+    queryFn: () => api.getEnvelopeDashboard(accountId),
+    enabled: !!accountId,
+  });
+}
+
+export function useMergeBudget() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, targetBudgetId }: { id: string; targetBudgetId: string }) =>
+      api.mergeBudget(id, targetBudgetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] });
+      queryClient.invalidateQueries({ queryKey: ['envelopeDashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroupStatuses'] });
+    },
+  });
+}
+
+export function useRestoreBudget() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.restoreBudget(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] });
+      queryClient.invalidateQueries({ queryKey: ['envelopeDashboard'] });
+    },
+  });
+}
+
+// Merchant hooks
+export function useMerchants() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['merchants', accountId],
+    queryFn: () => api.getMerchants(accountId),
+    enabled: !!accountId,
+  });
+}
+
+// Pending Review hooks
+export function usePendingReview(limit = 200) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['pendingReview', accountId, limit],
+    queryFn: () => api.getPendingReview(accountId, limit),
+    enabled: !!accountId,
+  });
+}
+
+export function useReviewTransaction() {
+  const { selectedAccount } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ transactionId, data }: {
+      transactionId: string;
+      data: { budget_id?: string; action: string; create_rule?: boolean };
+    }) => {
+      if (!selectedAccount) throw new Error('No account selected');
+      return api.reviewTransaction(selectedAccount.id, transactionId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingReview'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+    },
+  });
+}
+
+export function useBulkReview() {
+  const { selectedAccount } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { transaction_ids: string[]; budget_id: string; action?: string; create_rule?: boolean }) => {
+      if (!selectedAccount) throw new Error('No account selected');
+      return api.bulkReviewTransactions(selectedAccount.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingReview'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+    },
+  });
+}
+
 // Rule hooks
 export function useRules() {
   const { selectedAccount } = useAccount();

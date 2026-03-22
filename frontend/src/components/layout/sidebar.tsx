@@ -5,10 +5,12 @@ import {
   Receipt,
   PiggyBank,
   Settings,
-  Workflow,
+
   RefreshCw,
   TrendingUp,
   CalendarDays,
+  ClipboardCheck,
+  Store,
 } from "lucide-react";
 import { useSyncStatus } from "@/hooks/useApi";
 
@@ -19,7 +21,8 @@ const navItems = [
   { to: "/trends", label: "Trends", icon: TrendingUp },
   { to: "/annual", label: "Annual", icon: CalendarDays },
   { to: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
-  { to: "/rules", label: "Rules", icon: Workflow },
+  { to: "/rules", label: "Merchants", icon: Store },
+  { to: "/review", label: "Review", icon: ClipboardCheck },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -162,8 +162,69 @@ export interface CategoryRule {
   name: string;
   conditions: Record<string, unknown>;
   target_category: string;
+  target_budget_id?: string | null;
   priority: number;
   enabled: boolean;
+  is_exclusion?: boolean;
+}
+
+// Envelope Dashboard types (Phase 2.5b)
+export interface EnvelopeItem {
+  budget_id: string;
+  budget_name: string | null;
+  category: string;
+  allocated: number;
+  original_allocated: number;
+  rollover: number;
+  spent: number;
+  available: number;
+  pct_used: number;
+}
+
+export interface EnvelopeGroup {
+  group_id: string;
+  group_name: string;
+  icon: string | null;
+  display_order: number;
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+  envelopes: EnvelopeItem[];
+}
+
+export interface EnvelopeDashboardResponse {
+  period_id: string;
+  period_start: string;
+  period_end: string;
+  period_status: string;
+  groups: EnvelopeGroup[];
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+}
+
+// Merchant types (Phase 2.5b)
+export interface Merchant {
+  name: string;
+  transaction_count: number;
+  last_seen: string;
+  rule_id: string | null;
+  assigned_budget_id: string | null;
+  assigned_budget_name: string | null;
+  assigned_group_name: string | null;
+}
+
+// Pending review types
+export interface PendingTransaction {
+  id: string;
+  monzo_id: string;
+  amount: number;
+  merchant_name?: string;
+  monzo_category?: string;
+  custom_category?: string;
+  budget_id?: string | null;
+  review_status: string;
+  created_at: string | null;
 }
 
 export interface SyncStatus {
@@ -322,6 +383,21 @@ export const api = {
     return response.json() as Promise<{ imported: number; skipped: number; errors: string[] }>;
   },
 
+  // Budget merge & restore
+  mergeBudget: (id: string, targetBudgetId: string) =>
+    apiRequest<{ merged: boolean; source_id: string; target_id: string }>(`/api/v1/budgets/${id}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ target_budget_id: targetBudgetId }),
+    }),
+  restoreBudget: (id: string) =>
+    apiRequest<{ restored: boolean; budget_id: string }>(`/api/v1/budgets/${id}/restore`, {
+      method: 'POST',
+    }),
+
+  // Envelope Dashboard
+  getEnvelopeDashboard: (accountId: string) =>
+    apiRequest<EnvelopeDashboardResponse>(`/api/v1/accounts/${accountId}/periods/current/envelopes`),
+
   // Budget Groups
   getBudgetGroups: (accountId: string) =>
     apiRequest<BudgetGroup[]>(`/api/v1/budget-groups?account_id=${accountId}`),
@@ -361,6 +437,30 @@ export const api = {
     }),
   deleteRule: (id: string) =>
     apiRequest<void>(`/api/v1/rules/${id}`, { method: 'DELETE' }),
+
+  // Merchants
+  getMerchants: (accountId: string) =>
+    apiRequest<Merchant[]>(`/api/v1/accounts/${accountId}/merchants`),
+
+  // Review Queue
+  getPendingReview: (accountId: string, limit = 200, offset = 0) =>
+    apiRequest<{ items: PendingTransaction[]; total: number; limit: number; offset: number }>(
+      `/api/v1/accounts/${accountId}/transactions/pending-review?limit=${limit}&offset=${offset}`
+    ),
+  reviewTransaction: (accountId: string, transactionId: string, data: { budget_id?: string; action: string; create_rule?: boolean }) =>
+    apiRequest<{ id: string; budget_id: string | null; review_status: string; action: string }>(
+      `/api/v1/accounts/${accountId}/transactions/${transactionId}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    ),
+  bulkReviewTransactions: (accountId: string, data: { transaction_ids: string[]; budget_id: string; action?: string; create_rule?: boolean }) =>
+    apiRequest<{ reviewed: number; total: number; transaction_ids: string[] }>(
+      `/api/v1/accounts/${accountId}/transactions/bulk-review`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
 
   // Sync
   getSyncStatus: () => apiRequest<SyncStatus>('/api/v1/sync/status'),

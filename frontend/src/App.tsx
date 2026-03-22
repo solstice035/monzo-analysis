@@ -2,7 +2,7 @@ import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { Dashboard, Transactions, Budgets, Rules, Subscriptions, Settings } from "@/pages";
+import { Dashboard, Transactions, Budgets, Rules, Review, Subscriptions, Settings } from "@/pages";
 
 const Trends = React.lazy(() => import("@/pages/trends").then(m => ({ default: m.Trends })));
 const Annual = React.lazy(() => import("@/pages/annual").then(m => ({ default: m.Annual })));
@@ -44,6 +44,7 @@ function App() {
           <Route path="trends" element={<Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 text-stone animate-spin" /></div>}><Trends /></Suspense>} />
           <Route path="annual" element={<Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 text-stone animate-spin" /></div>}><Annual /></Suspense>} />
           <Route path="rules" element={<Rules />} />
+          <Route path="review" element={<Review />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
