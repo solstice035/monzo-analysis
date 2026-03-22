@@ -2,7 +2,9 @@
  * API client for the Monzo Analysis backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL so requests proxy through nginx (avoids CSP cross-origin issues).
+// Set VITE_API_URL env var only when running `npm run dev` locally (e.g. http://localhost:8200).
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 /**
  * Custom error class for API errors.
@@ -160,8 +162,69 @@ export interface CategoryRule {
   name: string;
   conditions: Record<string, unknown>;
   target_category: string;
+  target_budget_id?: string | null;
   priority: number;
   enabled: boolean;
+  is_exclusion?: boolean;
+}
+
+// Envelope Dashboard types (Phase 2.5b)
+export interface EnvelopeItem {
+  budget_id: string;
+  budget_name: string | null;
+  category: string;
+  allocated: number;
+  original_allocated: number;
+  rollover: number;
+  spent: number;
+  available: number;
+  pct_used: number;
+}
+
+export interface EnvelopeGroup {
+  group_id: string;
+  group_name: string;
+  icon: string | null;
+  display_order: number;
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+  envelopes: EnvelopeItem[];
+}
+
+export interface EnvelopeDashboardResponse {
+  period_id: string;
+  period_start: string;
+  period_end: string;
+  period_status: string;
+  groups: EnvelopeGroup[];
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+}
+
+// Merchant types (Phase 2.5b)
+export interface Merchant {
+  name: string;
+  transaction_count: number;
+  last_seen: string;
+  rule_id: string | null;
+  assigned_budget_id: string | null;
+  assigned_budget_name: string | null;
+  assigned_group_name: string | null;
+}
+
+// Pending review types
+export interface PendingTransaction {
+  id: string;
+  monzo_id: string;
+  amount: number;
+  merchant_name?: string;
+  monzo_category?: string;
+  custom_category?: string;
+  budget_id?: string | null;
+  review_status: string;
+  created_at: string | null;
 }
 
 export interface SyncStatus {
@@ -169,6 +232,75 @@ export interface SyncStatus {
   transactions_synced?: number;
   status: 'idle' | 'running' | 'success' | 'failed';
   error?: string;
+}
+
+// Phase 2 Types — Trends, Surplus, Annual, Income
+
+export interface EnvelopeTrendItem {
+  period_start: string;
+  budget_name: string | null;
+  group_name: string;
+  allocated: number;
+  spent: number;
+  pct_used: number;
+  over_budget: boolean;
+}
+
+export interface OverBudgetItem {
+  budget_id: string;
+  budget_name: string | null;
+  group_name: string;
+  over_budget_count: number;
+  total_periods: number;
+  pct_over: number;
+  avg_overspend_pence: number;
+}
+
+export interface SurplusItem {
+  period_start: string;
+  period_end: string;
+  total_allocated: number;
+  total_spent: number;
+  surplus_pence: number;
+  cumulative_surplus_pence: number;
+}
+
+export interface AnnualViewMonth {
+  month: number;
+  month_name: string;
+  period_id: string | null;
+  allocated: number;
+  spent: number;
+  available: number;
+  status: "under" | "on_track" | "over";
+}
+
+export interface AnnualViewGroup {
+  group_id: string;
+  group_name: string;
+  months: AnnualViewMonth[];
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+}
+
+export interface AnnualView {
+  year: number;
+  groups: AnnualViewGroup[];
+  monthly_totals: Array<{
+    month: number;
+    allocated: number;
+    spent: number;
+    available: number;
+  }>;
+  grand_total: { allocated: number; spent: number; available: number };
+}
+
+export interface IncomeItem {
+  period_start: string;
+  income_total_pence: number;
+  expense_total_pence: number;
+  net_pence: number;
 }
 
 // API Methods
@@ -251,6 +383,21 @@ export const api = {
     return response.json() as Promise<{ imported: number; skipped: number; errors: string[] }>;
   },
 
+  // Budget merge & restore
+  mergeBudget: (id: string, targetBudgetId: string) =>
+    apiRequest<{ merged: boolean; source_id: string; target_id: string }>(`/api/v1/budgets/${id}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ target_budget_id: targetBudgetId }),
+    }),
+  restoreBudget: (id: string) =>
+    apiRequest<{ restored: boolean; budget_id: string }>(`/api/v1/budgets/${id}/restore`, {
+      method: 'POST',
+    }),
+
+  // Envelope Dashboard
+  getEnvelopeDashboard: (accountId: string) =>
+    apiRequest<EnvelopeDashboardResponse>(`/api/v1/accounts/${accountId}/periods/current/envelopes`),
+
   // Budget Groups
   getBudgetGroups: (accountId: string) =>
     apiRequest<BudgetGroup[]>(`/api/v1/budget-groups?account_id=${accountId}`),
@@ -291,6 +438,30 @@ export const api = {
   deleteRule: (id: string) =>
     apiRequest<void>(`/api/v1/rules/${id}`, { method: 'DELETE' }),
 
+  // Merchants
+  getMerchants: (accountId: string) =>
+    apiRequest<Merchant[]>(`/api/v1/accounts/${accountId}/merchants`),
+
+  // Review Queue
+  getPendingReview: (accountId: string, limit = 200, offset = 0) =>
+    apiRequest<{ items: PendingTransaction[]; total: number; limit: number; offset: number }>(
+      `/api/v1/accounts/${accountId}/transactions/pending-review?limit=${limit}&offset=${offset}`
+    ),
+  reviewTransaction: (accountId: string, transactionId: string, data: { budget_id?: string; action: string; create_rule?: boolean }) =>
+    apiRequest<{ id: string; budget_id: string | null; review_status: string; action: string }>(
+      `/api/v1/accounts/${accountId}/transactions/${transactionId}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    ),
+  bulkReviewTransactions: (accountId: string, data: { transaction_ids: string[]; budget_id: string; action?: string; create_rule?: boolean }) =>
+    apiRequest<{ reviewed: number; total: number; transaction_ids: string[] }>(
+      `/api/v1/accounts/${accountId}/transactions/bulk-review`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
   // Sync
   getSyncStatus: () => apiRequest<SyncStatus>('/api/v1/sync/status'),
   triggerSync: () =>
@@ -329,4 +500,33 @@ export const api = {
       }>;
       total_monthly_cost: number;
     }>(`/api/v1/dashboard/recurring?account_id=${accountId}`),
+
+  // Phase 2 — Trends, Surplus, Annual, Income
+  getTrendsEnvelopes: (accountId: string, months = 6, budgetId?: string) => {
+    const params = new URLSearchParams({ months: months.toString() });
+    if (budgetId) params.set('budget_id', budgetId);
+    return apiRequest<EnvelopeTrendItem[]>(
+      `/api/v1/accounts/${accountId}/trends/envelopes?${params.toString()}`
+    );
+  },
+
+  getOverBudget: (accountId: string, months = 6) =>
+    apiRequest<OverBudgetItem[]>(
+      `/api/v1/accounts/${accountId}/trends/over-budget?months=${months}`
+    ),
+
+  getSurplus: (accountId: string, months = 12) =>
+    apiRequest<SurplusItem[]>(
+      `/api/v1/accounts/${accountId}/surplus?months=${months}`
+    ),
+
+  getAnnualView: (accountId: string, year: number) =>
+    apiRequest<AnnualView>(
+      `/api/v1/accounts/${accountId}/annual?year=${year}`
+    ),
+
+  getIncome: (accountId: string, months = 6) =>
+    apiRequest<IncomeItem[]>(
+      `/api/v1/accounts/${accountId}/income?months=${months}`
+    ),
 };

@@ -66,7 +66,7 @@ services:
       SYNC_SCHEDULE_MINUTE: ${SYNC_SCHEDULE_MINUTE:-0}
       DEBUG: ${DEBUG:-false}
     ports:
-      - "8000:8000"
+      - "8200:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,7 +92,7 @@ services:
     container_name: monzo-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8201:80"
     depends_on:
       - backend
     healthcheck:

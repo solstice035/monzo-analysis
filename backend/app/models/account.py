@@ -12,6 +12,7 @@ from app.models.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.budget import Budget
     from app.models.budget_group import BudgetGroup
+    from app.models.budget_period import BudgetPeriod
     from app.models.category_rule import CategoryRule
     from app.models.pot import Pot
     from app.models.transaction import Transaction
@@ -68,6 +69,11 @@ class Account(Base, TimestampMixin):
     )
     budget_groups: Mapped[list["BudgetGroup"]] = relationship(
         "BudgetGroup",
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    budget_periods: Mapped[list["BudgetPeriod"]] = relationship(
+        "BudgetPeriod",
         back_populates="account",
         cascade="all, delete-orphan",
     )

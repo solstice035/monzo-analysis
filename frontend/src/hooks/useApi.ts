@@ -19,6 +19,16 @@ export const queryKeys = {
   dashboardSummary: (accountId: string) => ['dashboardSummary', accountId] as const,
   dashboardTrends: (accountId: string, days: number) => ['dashboardTrends', accountId, days] as const,
   recurringTransactions: (accountId: string) => ['recurringTransactions', accountId] as const,
+  trendsEnvelopes: (accountId: string, months: number, budgetId?: string) =>
+    ['trendsEnvelopes', accountId, months, budgetId] as const,
+  overBudget: (accountId: string, months: number) =>
+    ['overBudget', accountId, months] as const,
+  surplus: (accountId: string, months: number) =>
+    ['surplus', accountId, months] as const,
+  annualView: (accountId: string, year: number) =>
+    ['annualView', accountId, year] as const,
+  income: (accountId: string, months: number) =>
+    ['income', accountId, months] as const,
 };
 
 // Auth hooks
@@ -229,6 +239,110 @@ export function useSinkingFundsStatus() {
   });
 }
 
+// Envelope Dashboard hooks
+export function useEnvelopeDashboard() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['envelopeDashboard', accountId],
+    queryFn: () => api.getEnvelopeDashboard(accountId),
+    enabled: !!accountId,
+  });
+}
+
+export function useMergeBudget() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, targetBudgetId }: { id: string; targetBudgetId: string }) =>
+      api.mergeBudget(id, targetBudgetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] });
+      queryClient.invalidateQueries({ queryKey: ['envelopeDashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetGroupStatuses'] });
+    },
+  });
+}
+
+export function useRestoreBudget() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.restoreBudget(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] });
+      queryClient.invalidateQueries({ queryKey: ['envelopeDashboard'] });
+    },
+  });
+}
+
+// Merchant hooks
+export function useMerchants() {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['merchants', accountId],
+    queryFn: () => api.getMerchants(accountId),
+    enabled: !!accountId,
+  });
+}
+
+// Pending Review hooks
+export function usePendingReview(limit = 200) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: ['pendingReview', accountId, limit],
+    queryFn: () => api.getPendingReview(accountId, limit),
+    enabled: !!accountId,
+  });
+}
+
+export function useReviewTransaction() {
+  const { selectedAccount } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ transactionId, data }: {
+      transactionId: string;
+      data: { budget_id?: string; action: string; create_rule?: boolean };
+    }) => {
+      if (!selectedAccount) throw new Error('No account selected');
+      return api.reviewTransaction(selectedAccount.id, transactionId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingReview'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+    },
+  });
+}
+
+export function useBulkReview() {
+  const { selectedAccount } = useAccount();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { transaction_ids: string[]; budget_id: string; action?: string; create_rule?: boolean }) => {
+      if (!selectedAccount) throw new Error('No account selected');
+      return api.bulkReviewTransactions(selectedAccount.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingReview'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+    },
+  });
+}
+
 // Rule hooks
 export function useRules() {
   const { selectedAccount } = useAccount();
@@ -325,6 +439,63 @@ export function useRecurringTransactions() {
   return useQuery({
     queryKey: queryKeys.recurringTransactions(accountId),
     queryFn: () => api.getRecurringTransactions(accountId),
+    enabled: !!accountId,
+  });
+}
+
+// Phase 2 hooks — Trends, Surplus, Annual, Income
+
+export function useTrendsEnvelopes(months = 6, budgetId?: string) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.trendsEnvelopes(accountId, months, budgetId),
+    queryFn: () => api.getTrendsEnvelopes(accountId, months, budgetId),
+    enabled: !!accountId,
+  });
+}
+
+export function useOverBudget(months = 6) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.overBudget(accountId, months),
+    queryFn: () => api.getOverBudget(accountId, months),
+    enabled: !!accountId,
+  });
+}
+
+export function useSurplus(months = 12) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.surplus(accountId, months),
+    queryFn: () => api.getSurplus(accountId, months),
+    enabled: !!accountId,
+  });
+}
+
+export function useAnnualView(year: number) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.annualView(accountId, year),
+    queryFn: () => api.getAnnualView(accountId, year),
+    enabled: !!accountId,
+  });
+}
+
+export function useIncome(months = 6) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.income(accountId, months),
+    queryFn: () => api.getIncome(accountId, months),
     enabled: !!accountId,
   });
 }

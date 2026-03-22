@@ -6,6 +6,7 @@ import { BudgetBar } from "@/components/ui/budget-bar";
 import { BudgetGroupCard } from "@/components/ui/budget-group-card";
 import { SinkingFundCard } from "@/components/ui/sinking-fund-card";
 import { TransactionRow } from "@/components/ui/transaction-row";
+import { SurplusTracker } from "@/components/surplus-tracker";
 import {
   useTriggerSync,
   useDashboardSummary,
@@ -26,7 +27,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-type TabType = "budget" | "analytics";
+type TabType = "budget" | "analytics" | "surplus";
 
 const categoryEmojis: Record<string, string> = {
   groceries: "🛒",
@@ -124,6 +125,16 @@ export function Dashboard() {
         >
           Analytics
         </button>
+        <button
+          onClick={() => setActiveTab("surplus")}
+          className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+            activeTab === "surplus"
+              ? "bg-coral text-white shadow-lg shadow-coral/25"
+              : "bg-navy text-stone hover:bg-navy-mid hover:text-white"
+          }`}
+        >
+          Surplus
+        </button>
       </div>
 
       {activeTab === "budget" ? (
@@ -138,7 +149,7 @@ export function Dashboard() {
           daysInMonth={daysInMonth}
           isLoading={groupsLoading}
         />
-      ) : (
+      ) : activeTab === "analytics" ? (
         <AnalyticsTab
           summary={summary}
           summaryLoading={summaryLoading}
@@ -146,6 +157,8 @@ export function Dashboard() {
           budgets={budgets || []}
           transactions={transactionsData?.items || []}
         />
+      ) : (
+        <SurplusTracker />
       )}
     </div>
   );

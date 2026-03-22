@@ -12,6 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.account import Account
+    from app.models.budget import Budget
 
 
 class CategoryRule(Base, TimestampMixin):
@@ -36,9 +37,16 @@ class CategoryRule(Base, TimestampMixin):
         JSON,
         nullable=False,
     )
+    # DEPRECATED: Use target_budget_id instead. Retained during dual-column period.
     target_category: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
+    )
+    # Phase 2.5a: FK to budgets — the canonical target reference.
+    target_budget_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("budgets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -48,6 +56,22 @@ class CategoryRule(Base, TimestampMixin):
         Boolean,
         default=True,
     )
+    is_income: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    is_transfer: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    is_exclusion: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="category_rules")
+    target_budget: Mapped["Budget | None"] = relationship(
+        "Budget",
+        foreign_keys=[target_budget_id],
+    )
