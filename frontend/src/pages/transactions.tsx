@@ -1,18 +1,8 @@
 import { useState, useMemo } from "react";
 import { TopBar } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { TransactionRow } from "@/components/ui/transaction-row";
+import { TransactionRowV2 } from "@/components/ui/transaction-row-v2";
 import { useTransactions, useUpdateTransaction } from "@/hooks/useApi";
-import { formatCurrency } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const categories = [
   "All",
@@ -23,28 +13,6 @@ const categories = [
   "entertainment",
   "bills",
 ];
-
-const allCategories = [
-  "groceries",
-  "eating_out",
-  "transport",
-  "shopping",
-  "entertainment",
-  "bills",
-  "general",
-  "cash",
-  "expenses",
-  "holidays",
-];
-
-interface Transaction {
-  id: string;
-  merchant_name?: string | null;
-  monzo_category?: string | null;
-  custom_category?: string | null;
-  amount: number;
-  created_at: string;
-}
 
 const PAGE_SIZE = 50;
 
@@ -62,20 +30,54 @@ function getMonthRange(offset: number) {
   };
 }
 
+function getDateGroupLabel(dateStr: string): string {
+  const txDate = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getDate() === b.getDate() &&
+    a.getMonth() === b.getMonth() &&
+    a.getFullYear() === b.getFullYear();
+
+  if (isSameDay(txDate, today)) return "TODAY";
+  if (isSameDay(txDate, yesterday)) return "YESTERDAY";
+
+  return txDate
+    .toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "long",
+    })
+    .toUpperCase();
+}
+
+interface GroupedTransactions {
+  label: string;
+  total: number;
+  transactions: Array<{
+    id: string;
+    merchant_name?: string | null;
+    monzo_category?: string | null;
+    custom_category?: string | null;
+    amount: number;
+    created_at: string;
+  }>;
+}
+
 export function Transactions() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [monthOffset, setMonthOffset] = useState(0);
   const [pageOffset, setPageOffset] = useState(0);
-  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  const [newCategory, setNewCategory] = useState<string>("");
 
-  // Debounce search input
+  const updateTransaction = useUpdateTransaction();
+
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     setPageOffset(0);
-    // Simple debounce using setTimeout
     clearTimeout((window as any).__searchTimeout);
     (window as any).__searchTimeout = setTimeout(() => {
       setDebouncedSearch(value);
@@ -92,25 +94,33 @@ export function Transactions() {
     limit: PAGE_SIZE,
     offset: pageOffset,
   });
-  const updateTransaction = useUpdateTransaction();
 
   const transactions = data?.items || [];
   const total = data?.total || 0;
   const hasMore = pageOffset + PAGE_SIZE < total;
 
-  const handleTransactionClick = (tx: Transaction) => {
-    setEditingTx(tx);
-    setNewCategory(tx.custom_category || tx.monzo_category || "general");
-  };
+  // Group transactions by date
+  const groupedTransactions = useMemo((): GroupedTransactions[] => {
+    const groups: Map<string, GroupedTransactions> = new Map();
 
-  const handleSaveCategory = async () => {
-    if (!editingTx) return;
+    for (const tx of transactions) {
+      const label = getDateGroupLabel(tx.created_at);
+      if (!groups.has(label)) {
+        groups.set(label, { label, total: 0, transactions: [] });
+      }
+      const group = groups.get(label)!;
+      group.transactions.push(tx);
+      group.total += tx.amount;
+    }
 
-    await updateTransaction.mutateAsync({
-      id: editingTx.id,
+    return Array.from(groups.values());
+  }, [transactions]);
+
+  const handleCategoryChange = (txId: string, newCategory: string) => {
+    updateTransaction.mutate({
+      id: txId,
       data: { custom_category: newCategory },
     });
-    setEditingTx(null);
   };
 
   const handlePrevMonth = () => {
@@ -150,9 +160,14 @@ export function Transactions() {
           onClick={handlePrevMonth}
           className="px-3 py-1 rounded-lg bg-navy-mid text-stone hover:text-white transition-colors"
         >
-          &larr; Prev
+          ← Prev
         </button>
-        <span className="text-white font-display text-lg">{monthRange.label}</span>
+        <span
+          className="text-white text-lg"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {monthRange.label}
+        </span>
         <button
           onClick={handleNextMonth}
           disabled={monthOffset >= 0}
@@ -160,12 +175,12 @@ export function Transactions() {
             monthOffset >= 0 ? "text-navy-mid cursor-not-allowed" : "text-stone hover:text-white"
           }`}
         >
-          Next &rarr;
+          Next →
         </button>
       </div>
 
       {/* Category filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-6 flex-wrap">
         {categories.map((cat) => (
           <button
             key={cat}
@@ -173,7 +188,7 @@ export function Transactions() {
               setSelectedCategory(cat);
               setPageOffset(0);
             }}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all capitalize ${
               cat === selectedCategory
                 ? "bg-coral text-white"
                 : "bg-navy-mid text-stone hover:text-white hover:bg-navy-deep"
@@ -184,96 +199,72 @@ export function Transactions() {
         ))}
       </div>
 
-      {/* Transactions List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {selectedCategory === "All" ? "ALL TRANSACTIONS" : selectedCategory.toUpperCase().replace(/_/g, " ")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isLoading && (
-            <div className="text-center py-8 text-stone">Loading transactions...</div>
-          )}
-          {error && (
-            <div className="text-center py-8 text-coral">
-              Failed to load transactions. Please try again.
-            </div>
-          )}
-          {!isLoading && !error && transactions.length === 0 && (
-            <div className="text-center py-8 text-stone">
-              No transactions found{selectedCategory !== "All" ? ` in ${selectedCategory.replace(/_/g, " ")}` : ""}.
-            </div>
-          )}
-          {transactions.map((tx) => (
-            <TransactionRow
-              key={tx.id}
-              merchant={tx.merchant_name || "Unknown"}
-              category={tx.custom_category || tx.monzo_category || "general"}
-              amount={tx.amount}
-              date={tx.created_at}
-              onClick={() => handleTransactionClick(tx)}
-            />
-          ))}
+      {/* Transaction list — date-grouped, full-width */}
+      <div className="rounded-xl border border-navy-mid overflow-hidden bg-navy">
+        {isLoading && (
+          <div className="text-center py-12 text-stone">Loading transactions...</div>
+        )}
+        {error && (
+          <div className="text-center py-12 text-coral">
+            Failed to load transactions.
+          </div>
+        )}
 
-          {/* Load more */}
-          {hasMore && (
-            <div className="text-center pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setPageOffset((o) => o + PAGE_SIZE)}
-                disabled={isLoading}
-              >
-                Load more ({total - pageOffset - PAGE_SIZE} remaining)
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {!isLoading && !error && groupedTransactions.length === 0 && (
+          <div className="text-center py-12 text-stone">
+            No transactions found
+            {selectedCategory !== "All"
+              ? ` in ${selectedCategory.replace(/_/g, " ")}`
+              : ""}
+            .
+          </div>
+        )}
 
-      {/* Category Override Dialog */}
-      <Dialog open={!!editingTx} onOpenChange={(open) => !open && setEditingTx(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Category</DialogTitle>
-            <DialogDescription>
-              {editingTx && (
-                <>
-                  <span className="font-medium text-white">{editingTx.merchant_name || "Unknown"}</span>
-                  <span className="mx-2">·</span>
-                  <span className="text-coral">{formatCurrency(Math.abs(editingTx.amount))}</span>
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-2 py-4">
-            {allCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setNewCategory(cat)}
-                className={`px-4 py-3 rounded-xl text-sm font-medium capitalize transition-all ${
-                  cat === newCategory
-                    ? "bg-coral text-white"
-                    : "bg-navy-mid text-stone hover:text-white hover:bg-navy-deep"
-                }`}
+        {groupedTransactions.map((group) => (
+          <div key={group.label}>
+            {/* Date group header */}
+            <div className="flex items-center justify-between px-4 py-2 bg-charcoal/60 border-b border-navy-mid sticky top-0 z-10">
+              <span className="text-xs font-bold text-stone uppercase tracking-wider">
+                {group.label}
+              </span>
+              <span
+                className="text-xs text-stone tabular-nums"
+                style={{ fontFamily: "var(--font-mono)" }}
               >
-                {cat.replace(/_/g, " ")}
-              </button>
+                {group.total < 0 ? "-" : "+"}£
+                {(Math.abs(group.total) / 100).toFixed(2)}
+              </span>
+            </div>
+
+            {/* Transactions in this date group */}
+            {group.transactions.map((tx) => (
+              <TransactionRowV2
+                key={tx.id}
+                id={tx.id}
+                merchant={tx.merchant_name || "Unknown"}
+                category={tx.custom_category || tx.monzo_category || "general"}
+                amount={tx.amount}
+                date={tx.created_at}
+                onCategoryChange={handleCategoryChange}
+              />
             ))}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTx(null)}>
-              Cancel
-            </Button>
+        ))}
+
+        {/* Load more */}
+        {hasMore && (
+          <div className="text-center py-4 border-t border-navy-mid">
             <Button
-              onClick={handleSaveCategory}
-              disabled={updateTransaction.isPending}
+              variant="outline"
+              size="sm"
+              onClick={() => setPageOffset((o) => o + PAGE_SIZE)}
+              disabled={isLoading}
             >
-              {updateTransaction.isPending ? "Saving..." : "Save"}
+              Load more ({total - pageOffset - PAGE_SIZE} remaining)
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

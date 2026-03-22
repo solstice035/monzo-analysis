@@ -67,22 +67,22 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-6">
-        <ul className="space-y-1 px-3">
+      <nav className="flex-1 py-4">
+        <ul className="space-y-0.5 px-3">
           {navItems.map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <NavLink
                 to={to}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
                     isActive
-                      ? "bg-coral/10 text-coral"
-                      : "text-stone hover:text-white hover:bg-navy-mid"
+                      ? "bg-coral/10 text-coral border-l-2 border-coral -ml-px"
+                      : "text-stone hover:text-white hover:bg-navy-mid/50 border-l-2 border-transparent -ml-px"
                   )
                 }
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-5 h-5" strokeWidth={1.75} />
                 {label}
               </NavLink>
             </li>
@@ -91,7 +91,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-6 border-t border-navy-mid">
+      <div className="p-4 border-t border-navy-mid">
         <div className="text-xs text-slate">
           Last sync: <span className={statusColor}>{lastSyncLabel}</span>
           {syncStatus?.status === "running" && (

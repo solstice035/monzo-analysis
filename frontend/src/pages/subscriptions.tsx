@@ -2,19 +2,7 @@ import { TopBar } from "@/components/layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useRecurringTransactions } from "@/hooks/useApi";
 import { RefreshCw } from "lucide-react";
-
-const categoryEmojis: Record<string, string> = {
-  groceries: "🛒",
-  eating_out: "🍽️",
-  shopping: "🛍️",
-  transport: "🚗",
-  entertainment: "🎬",
-  bills: "📄",
-  general: "📦",
-  holidays: "✈️",
-  cash: "💵",
-  expenses: "💼",
-};
+import { getCategoryIcon } from "@/lib/category-icons";
 
 function formatCurrency(pence: number): string {
   return `£${(pence / 100).toFixed(2)}`;
@@ -121,9 +109,14 @@ export function Subscriptions() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="text-2xl">
-                    {categoryEmojis[item.category] || "📦"}
-                  </div>
+                  {(() => {
+                    const CatIcon = getCategoryIcon(item.category);
+                    return (
+                      <div className="w-10 h-10 rounded-lg bg-navy-mid/30 flex items-center justify-center">
+                        <CatIcon size={18} strokeWidth={1.5} className="text-stone" />
+                      </div>
+                    );
+                  })()}
                   <div>
                     <div className="text-white font-medium">
                       {item.merchant_name}
