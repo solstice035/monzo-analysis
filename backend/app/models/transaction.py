@@ -12,6 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.account import Account
+    from app.models.budget import Budget
 
 
 class Transaction(Base, TimestampMixin):
@@ -56,9 +57,23 @@ class Transaction(Base, TimestampMixin):
         JSON,
         nullable=True,
     )
+    budget_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("budgets.id"),
+        nullable=True,
+        index=True,
+    )
+    review_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        default=None,
+    )
 
-    # Relationship
+    # Relationships
     account: Mapped["Account"] = relationship(
         "Account",
         back_populates="transactions",
+    )
+    budget: Mapped["Budget | None"] = relationship(
+        "Budget",
+        foreign_keys=[budget_id],
     )

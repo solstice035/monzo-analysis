@@ -1,9 +1,10 @@
 """Budget model for spending budgets and sinking funds."""
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -11,6 +12,7 @@ from app.models.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.budget_group import BudgetGroup
+    from app.models.envelope_balance import EnvelopeBalance
 
 
 class Budget(Base, TimestampMixin):
@@ -77,10 +79,20 @@ class Budget(Base, TimestampMixin):
         String(100),
         nullable=True,
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="budgets")
     group: Mapped["BudgetGroup"] = relationship("BudgetGroup", back_populates="budgets")
+    envelope_balances: Mapped[list["EnvelopeBalance"]] = relationship(
+        "EnvelopeBalance",
+        back_populates="budget",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def is_sinking_fund(self) -> bool:

@@ -48,6 +48,14 @@ class CategoryRule(Base, TimestampMixin):
         Boolean,
         default=True,
     )
+    is_income: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
+    is_transfer: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+    )
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="category_rules")
