@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -25,6 +25,11 @@ class BudgetPeriod(Base, TimestampMixin):
     __tablename__ = "budget_periods"
     __table_args__ = (
         UniqueConstraint("account_id", "period_start", name="uq_budget_periods_account_start"),
+        CheckConstraint(
+            "status IN ('active', 'closing', 'closed')",
+            name="ck_budget_periods_status",
+        ),
+        Index("ix_budget_periods_status", "status"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

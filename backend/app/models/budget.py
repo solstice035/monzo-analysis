@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -83,7 +83,22 @@ class Budget(Base, TimestampMixin):
         DateTime(timezone=True),
         nullable=True,
         default=None,
+        index=True,
     )
+
+    @classmethod
+    def active_filter(cls) -> Any:
+        """Return a filter clause for non-deleted budgets.
+
+        Use in all service queries:
+            .where(Budget.active_filter())
+        """
+        return cls.deleted_at.is_(None)
+
+    @property
+    def is_active(self) -> bool:
+        """Return True if this budget has not been soft-deleted."""
+        return self.deleted_at is None
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="budgets")

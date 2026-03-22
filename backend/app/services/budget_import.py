@@ -69,7 +69,7 @@ def parse_amount(amount_str: str) -> int:
     cleaned = re.sub(r"[£$,\s]", "", cleaned)
 
     try:
-        return int(float(cleaned) * 100)
+        return round(float(cleaned) * 100)
     except (ValueError, TypeError):
         return 0
 
@@ -248,11 +248,10 @@ class BudgetImportService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def preview(self, parsed: ParsedBudget) -> dict[str, Any]:
+    async def preview(self, account_id: UUID, parsed: ParsedBudget) -> dict[str, Any]:
         """Return a preview of what would be imported, without committing.
 
-        Returns:
-            Dict with groups, line items, warnings, and totals.
+        account_id scopes the preview (future: show update vs create counts).
         """
         preview_groups = []
         for group_name, items in parsed.groups.items():

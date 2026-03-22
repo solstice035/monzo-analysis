@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,6 +19,12 @@ class Transaction(Base, TimestampMixin):
     """Represents a Monzo transaction."""
 
     __tablename__ = "transactions"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status IN ('pending', 'confirmed', 'excluded') OR review_status IS NULL",
+            name="ck_transactions_review_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,

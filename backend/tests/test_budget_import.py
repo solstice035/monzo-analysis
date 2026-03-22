@@ -250,7 +250,7 @@ class TestBudgetImportServicePreview:
             total_monthly_pence=12500,
             line_count=1,
         )
-        preview = await service.preview(parsed)
+        preview = await service.preview(uuid.UUID("00000000-0000-0000-0000-000000000001"), parsed)
         assert len(preview["groups"]) == 1
         assert preview["groups"][0]["name"] == "Kids"
         assert preview["groups"][0]["item_count"] == 1
@@ -264,7 +264,7 @@ class TestBudgetImportServicePreview:
             warnings=["Row 2: 'Art' has £0/TBC amount"],
             line_count=1,
         )
-        preview = await service.preview(parsed)
+        preview = await service.preview(uuid.UUID("00000000-0000-0000-0000-000000000001"), parsed)
         assert len(preview["warnings"]) == 1
 
     @pytest.mark.asyncio
@@ -274,7 +274,7 @@ class TestBudgetImportServicePreview:
             skipped_groups=["Nanny"],
             line_count=0,
         )
-        preview = await service.preview(parsed)
+        preview = await service.preview(uuid.UUID("00000000-0000-0000-0000-000000000001"), parsed)
         assert "Nanny" in preview["skipped_groups"]
 
 
