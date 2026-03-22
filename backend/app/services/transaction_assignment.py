@@ -66,15 +66,13 @@ class TransactionAssignmentService:
         if getattr(matched_rule, "is_exclusion", False):
             return None, None
 
-        # Fast path: use target_budget_id directly if set (Phase 2.5a FK)
+        # Resolve budget via FK (target_category string column dropped in migration 014)
         target_budget_id = getattr(matched_rule, "target_budget_id", None)
-        if target_budget_id:
-            budget = await self._find_budget_by_id(target_budget_id, account_id=account_id)
-        else:
-            # Slow path (backward compat): fall back to category string lookup
-            budget = await self._find_budget_by_category(
-                account_id, matched_rule.target_category
-            )
+        if not target_budget_id:
+            # Rule exists but has no target budget and is not an exclusion — pending review
+            return None, "pending"
+
+        budget = await self._find_budget_by_id(target_budget_id, account_id=account_id)
 
         if not budget:
             # Category exists in rules but no matching budget — pending review

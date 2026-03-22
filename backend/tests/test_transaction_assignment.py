@@ -33,7 +33,8 @@ def _make_rule(
     rule.is_income = is_income
     rule.is_transfer = is_transfer
     rule.target_category = target_category
-    rule.target_budget_id = target_budget_id
+    # After migration 014, target_budget_id is required for non-exclusion rules
+    rule.target_budget_id = target_budget_id if target_budget_id is not None else uuid.uuid4()
     rule.is_exclusion = is_exclusion
     conditions = {}
     if merchant_exact:
@@ -341,27 +342,21 @@ class TestFKFastPath:
         assert review_status is None  # High confidence (merchant_exact)
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_category_lookup(self, service, mock_session):
-        """When rule has no target_budget_id, fall back to category string lookup."""
-        budget = MagicMock(spec=Budget)
-        budget.id = uuid.uuid4()
-
+    async def test_rule_without_target_budget_id_returns_pending(self, service, mock_session):
+        """After migration 014, rules without target_budget_id return pending (no fallback)."""
+        # Directly patch target_budget_id to None after _make_rule sets it
         rule = _make_rule(
-            target_category="groceries",
             merchant_exact="Tesco",
-            target_budget_id=None,  # No FK set yet
+            is_exclusion=False,
         )
-
-        mock_session.execute.return_value = _mock_execute_result(
-            scalar_one_or_none=budget
-        )
+        rule.target_budget_id = None  # Override to test the explicit None case
 
         tx_data = _make_tx_data(merchant_name="Tesco")
         budget_id, review_status = await service.assign_transaction(
             tx_data, uuid.uuid4(), uuid.uuid4(), rules=[rule]
         )
-        assert budget_id == budget.id
-        assert review_status is None
+        assert budget_id is None
+        assert review_status == "pending"
 
     @pytest.mark.asyncio
     async def test_fk_deleted_budget_returns_pending(self, service, mock_session):
