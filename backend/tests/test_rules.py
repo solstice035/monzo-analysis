@@ -428,7 +428,7 @@ class TestRulesServicePhase25a:
         from uuid import uuid4
 
         account_id = str(uuid4())
-        budget_id = str(uuid4())
+        budget_id = uuid4()
         mock_session = AsyncMock()
 
         service = RulesService(mock_session)
@@ -471,7 +471,7 @@ class TestRulesServicePhase25a:
         from app.services.rules import RulesService
         from uuid import uuid4
 
-        new_budget_id = str(uuid4())
+        new_budget_id = uuid4()
         existing_rule = MagicMock()
         existing_rule.id = "rule_123"
         existing_rule.conditions = {"merchant_exact": "Tesco"}
@@ -504,7 +504,7 @@ class TestRulesServicePhase25a:
             account_id=account_id,
             name="Costa Rule",
             merchant_exact="Costa Coffee",
-            target_budget_id=str(uuid4()),
+            target_budget_id=uuid4(),
             priority=50,
         )
 

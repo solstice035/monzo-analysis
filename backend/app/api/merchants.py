@@ -9,8 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import String, case, cast, func, select, text, type_coerce
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, case, cast, func, select
 
 from app.database import get_session
 from app.models import Budget, BudgetGroup, CategoryRule, Transaction

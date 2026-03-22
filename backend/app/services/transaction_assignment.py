@@ -69,7 +69,7 @@ class TransactionAssignmentService:
         # Fast path: use target_budget_id directly if set (Phase 2.5a FK)
         target_budget_id = getattr(matched_rule, "target_budget_id", None)
         if target_budget_id:
-            budget = await self._find_budget_by_id(target_budget_id)
+            budget = await self._find_budget_by_id(target_budget_id, account_id=account_id)
         else:
             # Slow path (backward compat): fall back to category string lookup
             budget = await self._find_budget_by_category(
@@ -176,15 +176,22 @@ class TransactionAssignmentService:
     async def _find_budget_by_id(
         self,
         budget_id: UUID,
+        account_id: UUID | None = None,
     ) -> Budget | None:
-        """Find an active budget by its ID (fast path for FK-based lookup)."""
+        """Find an active budget by its ID (fast path for FK-based lookup).
+
+        account_id is used as a cross-account safety check — ensures a rule
+        cannot reference a budget belonging to a different account.
+        """
+        conditions = [
+            Budget.id == budget_id,
+            Budget.deleted_at.is_(None),
+        ]
+        if account_id is not None:
+            conditions.append(Budget.account_id == account_id)
+
         result = await self._session.execute(
-            select(Budget).where(
-                and_(
-                    Budget.id == budget_id,
-                    Budget.deleted_at.is_(None),
-                )
-            )
+            select(Budget).where(and_(*conditions))
         )
         return result.scalar_one_or_none()
 

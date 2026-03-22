@@ -1,7 +1,7 @@
 """Category rules engine for transaction categorisation."""
 
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -178,7 +178,7 @@ class RulesService:
         amount_max: int | None = None,
         monzo_category: str | None = None,
         enabled: bool = True,
-        target_budget_id: str | None = None,
+        target_budget_id: str | UUID | None = None,
         is_exclusion: bool = False,
     ) -> CategoryRule:
         """Create a new category rule for an account.
@@ -200,6 +200,11 @@ class RulesService:
         Returns:
             Created category rule
         """
+        # Parse target_budget_id to UUID — catches malformed IDs early
+        parsed_budget_id: UUID | None = None
+        if target_budget_id is not None:
+            parsed_budget_id = UUID(str(target_budget_id)) if not isinstance(target_budget_id, UUID) else target_budget_id
+
         conditions: dict[str, Any] = {}
         if merchant_pattern:
             conditions["merchant_pattern"] = merchant_pattern
@@ -220,7 +225,7 @@ class RulesService:
             target_category=target_category,
             priority=priority,
             enabled=enabled,
-            target_budget_id=target_budget_id,
+            target_budget_id=parsed_budget_id,
             is_exclusion=is_exclusion,
         )
         self._session.add(rule)
@@ -238,7 +243,7 @@ class RulesService:
         target_category: str | None = None,
         priority: int | None = None,
         enabled: bool | None = None,
-        target_budget_id: str | None = None,
+        target_budget_id: str | UUID | None = None,
         is_exclusion: bool | None = None,
     ) -> CategoryRule | None:
         """Update an existing category rule.
@@ -263,7 +268,8 @@ class RulesService:
         if target_category is not None:
             rule.target_category = target_category
         if target_budget_id is not None:
-            rule.target_budget_id = target_budget_id
+            # Parse to UUID — catches malformed IDs early
+            rule.target_budget_id = UUID(str(target_budget_id)) if not isinstance(target_budget_id, UUID) else target_budget_id
         if is_exclusion is not None:
             rule.is_exclusion = is_exclusion
         if priority is not None:
