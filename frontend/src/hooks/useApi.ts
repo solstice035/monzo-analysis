@@ -19,6 +19,16 @@ export const queryKeys = {
   dashboardSummary: (accountId: string) => ['dashboardSummary', accountId] as const,
   dashboardTrends: (accountId: string, days: number) => ['dashboardTrends', accountId, days] as const,
   recurringTransactions: (accountId: string) => ['recurringTransactions', accountId] as const,
+  trendsEnvelopes: (accountId: string, months: number, budgetId?: string) =>
+    ['trendsEnvelopes', accountId, months, budgetId] as const,
+  overBudget: (accountId: string, months: number) =>
+    ['overBudget', accountId, months] as const,
+  surplus: (accountId: string, months: number) =>
+    ['surplus', accountId, months] as const,
+  annualView: (accountId: string, year: number) =>
+    ['annualView', accountId, year] as const,
+  income: (accountId: string, months: number) =>
+    ['income', accountId, months] as const,
 };
 
 // Auth hooks
@@ -325,6 +335,63 @@ export function useRecurringTransactions() {
   return useQuery({
     queryKey: queryKeys.recurringTransactions(accountId),
     queryFn: () => api.getRecurringTransactions(accountId),
+    enabled: !!accountId,
+  });
+}
+
+// Phase 2 hooks — Trends, Surplus, Annual, Income
+
+export function useTrendsEnvelopes(months = 6, budgetId?: string) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.trendsEnvelopes(accountId, months, budgetId),
+    queryFn: () => api.getTrendsEnvelopes(accountId, months, budgetId),
+    enabled: !!accountId,
+  });
+}
+
+export function useOverBudget(months = 6) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.overBudget(accountId, months),
+    queryFn: () => api.getOverBudget(accountId, months),
+    enabled: !!accountId,
+  });
+}
+
+export function useSurplus(months = 12) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.surplus(accountId, months),
+    queryFn: () => api.getSurplus(accountId, months),
+    enabled: !!accountId,
+  });
+}
+
+export function useAnnualView(year: number) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.annualView(accountId, year),
+    queryFn: () => api.getAnnualView(accountId, year),
+    enabled: !!accountId,
+  });
+}
+
+export function useIncome(months = 6) {
+  const { selectedAccount } = useAccount();
+  const accountId = selectedAccount?.id || '';
+
+  return useQuery({
+    queryKey: queryKeys.income(accountId, months),
+    queryFn: () => api.getIncome(accountId, months),
     enabled: !!accountId,
   });
 }

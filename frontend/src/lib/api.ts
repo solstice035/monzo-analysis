@@ -171,6 +171,75 @@ export interface SyncStatus {
   error?: string;
 }
 
+// Phase 2 Types — Trends, Surplus, Annual, Income
+
+export interface EnvelopeTrendItem {
+  period_start: string;
+  budget_name: string | null;
+  group_name: string;
+  allocated: number;
+  spent: number;
+  pct_used: number;
+  over_budget: boolean;
+}
+
+export interface OverBudgetItem {
+  budget_id: string;
+  budget_name: string | null;
+  group_name: string;
+  over_budget_count: number;
+  total_periods: number;
+  pct_over: number;
+  avg_overspend_pence: number;
+}
+
+export interface SurplusItem {
+  period_start: string;
+  period_end: string;
+  total_allocated: number;
+  total_spent: number;
+  surplus_pence: number;
+  cumulative_surplus_pence: number;
+}
+
+export interface AnnualViewMonth {
+  month: number;
+  month_name: string;
+  period_id: string | null;
+  allocated: number;
+  spent: number;
+  available: number;
+  status: "under" | "on_track" | "over";
+}
+
+export interface AnnualViewGroup {
+  group_id: string;
+  group_name: string;
+  months: AnnualViewMonth[];
+  total_allocated: number;
+  total_spent: number;
+  total_available: number;
+}
+
+export interface AnnualView {
+  year: number;
+  groups: AnnualViewGroup[];
+  monthly_totals: Array<{
+    month: number;
+    allocated: number;
+    spent: number;
+    available: number;
+  }>;
+  grand_total: { allocated: number; spent: number; available: number };
+}
+
+export interface IncomeItem {
+  period_start: string;
+  income_total_pence: number;
+  expense_total_pence: number;
+  net_pence: number;
+}
+
 // API Methods
 
 export const api = {
@@ -329,4 +398,33 @@ export const api = {
       }>;
       total_monthly_cost: number;
     }>(`/api/v1/dashboard/recurring?account_id=${accountId}`),
+
+  // Phase 2 — Trends, Surplus, Annual, Income
+  getTrendsEnvelopes: (accountId: string, months = 6, budgetId?: string) => {
+    const params = new URLSearchParams({ months: months.toString() });
+    if (budgetId) params.set('budget_id', budgetId);
+    return apiRequest<EnvelopeTrendItem[]>(
+      `/api/v1/accounts/${accountId}/trends/envelopes?${params.toString()}`
+    );
+  },
+
+  getOverBudget: (accountId: string, months = 6) =>
+    apiRequest<OverBudgetItem[]>(
+      `/api/v1/accounts/${accountId}/trends/over-budget?months=${months}`
+    ),
+
+  getSurplus: (accountId: string, months = 12) =>
+    apiRequest<SurplusItem[]>(
+      `/api/v1/accounts/${accountId}/surplus?months=${months}`
+    ),
+
+  getAnnualView: (accountId: string, year: number) =>
+    apiRequest<AnnualView>(
+      `/api/v1/accounts/${accountId}/annual?year=${year}`
+    ),
+
+  getIncome: (accountId: string, months = 6) =>
+    apiRequest<IncomeItem[]>(
+      `/api/v1/accounts/${accountId}/income?months=${months}`
+    ),
 };

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { Layout } from "@/components/layout";
-import { Dashboard, Transactions, Budgets, Rules, Subscriptions, Settings } from "@/pages";
+import { Dashboard, Transactions, Budgets, Rules, Subscriptions, Settings, Trends, Annual } from "@/pages";
 
 function NotFound() {
   return (
@@ -36,6 +36,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="budgets" element={<Budgets />} />
+          <Route path="trends" element={<Trends />} />
+          <Route path="annual" element={<Annual />} />
           <Route path="rules" element={<Rules />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="settings" element={<Settings />} />
