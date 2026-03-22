@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useRef, useState, useMemo } from "react";
 import { TopBar } from "@/components/layout";
 import { Button } from "@/components/ui/button";
+import { MonthSummaryBar } from "@/components/ui/month-summary-bar";
+import { BudgetTableNew } from "@/components/budget-table";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Upload, ArrowLeft } from "lucide-react";
-import { useImportBudgets } from "@/hooks/useApi";
+import { Upload } from "lucide-react";
+import {
+  useImportBudgets,
+  useBudgetGroupStatuses,
+} from "@/hooks/useApi";
 
 export function Budgets() {
   const importBudgets = useImportBudgets();
@@ -22,6 +26,26 @@ export function Budgets() {
     skipped: number;
     errors: string[];
   } | null>(null);
+
+  const { data: budgetGroups } = useBudgetGroupStatuses();
+
+  // Compute summary data
+  const summary = useMemo(() => {
+    if (!budgetGroups) return { spent: 0, budget: 0, remaining: 0 };
+    return budgetGroups.reduce(
+      (acc, g) => ({
+        spent: acc.spent + g.total_spent,
+        budget: acc.budget + g.total_budget,
+        remaining: acc.remaining + g.remaining,
+      }),
+      { spent: 0, budget: 0, remaining: 0 }
+    );
+  }, [budgetGroups]);
+
+  const now = new Date();
+  const currentDay = now.getDate();
+  const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const budgetCount = budgetGroups?.reduce((sum, g) => sum + g.budget_count, 0) ?? 0;
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -53,75 +77,41 @@ export function Budgets() {
     <div>
       <TopBar
         title="BUDGETS"
-        subtitle="Import and manage budget data"
+        subtitle={`${budgetCount} active budgets`}
         showSync={false}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".csv"
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleImportClick}
+            disabled={importBudgets.isPending}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            {importBudgets.isPending ? "Importing..." : "Import CSV"}
+          </Button>
+        </div>
+      </TopBar>
+
+      {/* Month summary bar */}
+      <MonthSummaryBar
+        totalSpent={summary.spent}
+        totalBudget={summary.budget}
+        totalRemaining={summary.remaining}
+        currentDay={currentDay}
+        totalDays={totalDays}
+        className="mb-4"
       />
 
-      {/* Navigation back to dashboard */}
-      <div className="mb-8 p-6 bg-charcoal rounded-xl border border-navy-mid">
-        <div className="flex items-center gap-3 mb-4">
-          <ArrowLeft className="w-5 h-5 text-coral" />
-          <h2
-            className="text-lg text-white"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            BUDGET MANAGEMENT HAS MOVED
-          </h2>
-        </div>
-        <p className="text-stone text-sm mb-4">
-          Budget groups, line items, and inline editing are now on the{" "}
-          <Link to="/" className="text-coral hover:text-coral-bright underline">
-            Dashboard
-          </Link>
-          . Click any budget amount or category name to edit inline.
-        </p>
-        <Link to="/">
-          <Button>Go to Dashboard</Button>
-        </Link>
-      </div>
-
-      {/* CSV Import — kept here as a utility */}
-      <div className="p-6 bg-charcoal rounded-xl border border-navy-mid">
-        <h3
-          className="text-lg text-white mb-3"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          CSV IMPORT
-        </h3>
-        <p className="text-stone text-sm mb-4">
-          Batch import budgets from a CSV file. Existing budgets with the same
-          category won't be duplicated.
-        </p>
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".csv"
-          className="hidden"
-        />
-
-        <Button
-          variant="outline"
-          onClick={handleImportClick}
-          disabled={importBudgets.isPending}
-        >
-          <Upload className="w-4 h-4" />
-          {importBudgets.isPending ? "IMPORTING..." : "IMPORT CSV"}
-        </Button>
-
-        <div className="mt-4 text-xs text-stone">
-          <p className="font-medium mb-1">Expected CSV format:</p>
-          <code className="block bg-navy p-3 rounded text-mint">
-            category,amount,period,start_day
-            <br />
-            groceries,30000,monthly,1
-            <br />
-            transport,15000,monthly,1
-          </code>
-          <p className="mt-2">Amount in pence (30000 = £300.00)</p>
-        </div>
-      </div>
+      {/* Budget table — full interactive */}
+      <BudgetTableNew />
 
       {/* Import Result Dialog */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
