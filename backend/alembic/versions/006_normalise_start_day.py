@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "006_normalise_start_day"
-down_revision = "005_backfill_account_id_not_null"
+down_revision = "005"
 branch_labels = None
 depends_on = None
 
