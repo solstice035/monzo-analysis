@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 SYNC_JOB_ID = "monzo_sync"
 DIGEST_JOB_ID = "daily_digest"
+PERIOD_CLOSE_JOB_ID = "period_close"
 
 
 def get_sync_job_id() -> str:
@@ -53,6 +54,16 @@ def create_scheduler() -> AsyncIOScheduler:
         trigger=CronTrigger(hour=21, minute=0),
         id=DIGEST_JOB_ID,
         name="Daily Spending Digest",
+        replace_existing=True,
+    )
+
+    # Add period close job — runs at 06:00 UTC on the 28th of each month
+    # Runs after daily sync to capture late-arriving transactions
+    scheduler.add_job(
+        run_period_close,
+        trigger=CronTrigger(day=28, hour=6, minute=0),
+        id=PERIOD_CLOSE_JOB_ID,
+        name="Monthly Period Close & Rollover",
         replace_existing=True,
     )
 
@@ -273,3 +284,68 @@ async def run_daily_digest() -> None:
 
     except Exception as e:
         logger.error(f"Daily digest failed: {e}")
+
+
+async def run_period_close() -> None:
+    """Close all active budget periods and create next periods with rollover.
+
+    Fires on the 28th of each month at 06:00 UTC, after daily sync.
+    Iterates all accounts, finds active periods, and closes them.
+    """
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.database import get_session
+    from app.models import Account
+    from app.services.budget_period import BudgetPeriodService
+
+    logger.info("Starting monthly period close")
+    settings = get_settings()
+
+    try:
+        async with get_session() as session:
+            accounts_result = await session.execute(select(Account))
+            accounts = list(accounts_result.scalars().all())
+
+            period_service = BudgetPeriodService(session)
+            closed_count = 0
+
+            for account in accounts:
+                current_period = await period_service.get_current_period(account.id)
+                if not current_period:
+                    logger.warning(f"No active period for account {account.id}")
+                    continue
+
+                try:
+                    next_period = await period_service.close_period(
+                        account.id, current_period.id
+                    )
+                    closed_count += 1
+                    logger.info(
+                        f"Closed period for account {account.id}: "
+                        f"{current_period.period_start} → {next_period.period_start}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Period close failed for account {account.id}: {e}"
+                    )
+
+            await session.commit()
+
+        logger.info(f"Period close complete: {closed_count} periods closed")
+
+        # Notify via Slack
+        if settings.slack_webhook_url:
+            slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+            await slack_service.send_message(
+                f"📅 Monthly period close complete: {closed_count} period(s) rolled over"
+            )
+
+    except Exception as e:
+        logger.error(f"Period close job failed: {e}")
+        if settings.slack_webhook_url:
+            slack_service = SlackService(webhook_url=settings.slack_webhook_url)
+            await slack_service.send_message(
+                f"🚨 Period close failed: {e}"
+            )
