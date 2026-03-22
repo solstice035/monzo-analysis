@@ -86,21 +86,6 @@
 }
 
 @layer components {
-  /* Stat blocks */
-  .stat-block {
-    @apply bg-navy rounded-2xl p-6;
-    border-left: 4px solid var(--color-coral);
-  }
-
-  .stat-label {
-    @apply text-xs font-semibold uppercase tracking-wider text-stone mb-2;
-  }
-
-  .stat-value {
-    font-family: var(--font-display);
-    @apply text-4xl text-foreground;
-    letter-spacing: 0.02em;
-  }
 
   .stat-change {
     @apply text-sm font-semibold mt-1;
