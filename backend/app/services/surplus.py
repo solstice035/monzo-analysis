@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Budget, BudgetPeriod, EnvelopeBalance, Transaction
+from app.models import Budget, BudgetGroup, BudgetPeriod, EnvelopeBalance, Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -118,3 +118,87 @@ class SurplusService:
             )
         )
         return abs(result.scalar() or 0)
+
+    async def get_surplus_by_group(
+        self,
+        account_id: UUID,
+        months: int = 12,
+    ) -> list[dict[str, Any]]:
+        """Get per-group, per-period surplus data.
+
+        Returns list of groups, each containing periods with allocated/spent/surplus.
+        Only monthly budgets are included (sinking funds excluded).
+        Ordered by period_start asc, group display_order asc.
+        """
+        periods = await self._get_recent_periods(account_id, months)
+        if not periods:
+            return []
+
+        # Get all budget groups for this account, ordered by display_order
+        groups = await self._get_budget_groups(account_id)
+        if not groups:
+            return []
+
+        # Build per-group, per-period data
+        group_data: dict[UUID, dict[str, Any]] = {}
+        for group in groups:
+            group_data[group.id] = {
+                "group_id": str(group.id),
+                "group_name": group.name,
+                "periods": [],
+            }
+
+        for period in periods:
+            envelopes = await self._get_envelope_balances(period.id)
+
+            # Accumulate per-group totals for this period
+            group_totals: dict[UUID, dict[str, int]] = {}
+            for group in groups:
+                group_totals[group.id] = {"allocated": 0, "spent": 0}
+
+            for eb in envelopes:
+                budget = await self._get_budget(eb.budget_id)
+                if not budget:
+                    continue
+                if budget.period_type != "monthly" or budget.deleted_at is not None:
+                    continue
+                if budget.group_id is None or budget.group_id not in group_totals:
+                    continue
+
+                group_totals[budget.group_id]["allocated"] += eb.allocated
+                spent = await self._compute_spent(
+                    eb.budget_id, period.period_start, period.period_end,
+                )
+                group_totals[budget.group_id]["spent"] += spent
+
+            for group in groups:
+                totals = group_totals[group.id]
+                surplus = totals["allocated"] - totals["spent"]
+                group_data[group.id]["periods"].append({
+                    "period_start": period.period_start.isoformat(),
+                    "allocated": totals["allocated"],
+                    "spent": totals["spent"],
+                    "surplus_pence": surplus,
+                })
+
+        # Filter out groups that had zero activity across all periods
+        result = []
+        for group in groups:
+            gd = group_data[group.id]
+            has_activity = any(
+                p["allocated"] != 0 or p["spent"] != 0
+                for p in gd["periods"]
+            )
+            if has_activity:
+                result.append(gd)
+
+        return result
+
+    async def _get_budget_groups(self, account_id: UUID) -> list[BudgetGroup]:
+        """Get budget groups for an account, ordered by display_order."""
+        result = await self._session.execute(
+            select(BudgetGroup)
+            .where(BudgetGroup.account_id == account_id)
+            .order_by(BudgetGroup.display_order.asc())
+        )
+        return list(result.scalars().all())
