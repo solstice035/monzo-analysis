@@ -24,6 +24,8 @@ def _make_rule(
     merchant_pattern=None,
     is_income=False,
     is_transfer=False,
+    target_budget_id=None,
+    is_exclusion=False,
 ):
     rule = MagicMock(spec=CategoryRule)
     rule.priority = priority
@@ -31,6 +33,8 @@ def _make_rule(
     rule.is_income = is_income
     rule.is_transfer = is_transfer
     rule.target_category = target_category
+    rule.target_budget_id = target_budget_id
+    rule.is_exclusion = is_exclusion
     conditions = {}
     if merchant_exact:
         conditions["merchant_exact"] = merchant_exact
@@ -269,6 +273,117 @@ class TestBackfillExistingTransactions:
         result = await service.backfill_existing_transactions(uuid.uuid4())
         assert result["unmatched"] == 1
         assert tx.review_status == "pending"
+
+
+class TestExclusionRules:
+    """Tests for exclusion rule handling (Phase 2.5a)."""
+
+    @pytest.fixture
+    def mock_session(self):
+        session = AsyncMock()
+        session.flush = AsyncMock()
+        return session
+
+    @pytest.fixture
+    def service(self, mock_session):
+        return TransactionAssignmentService(mock_session)
+
+    @pytest.mark.asyncio
+    async def test_exclusion_rule_returns_none(self, service):
+        """Exclusion rules skip envelope assignment entirely."""
+        rule = _make_rule(
+            target_category="savings",
+            merchant_exact="Savings Pot",
+            is_exclusion=True,
+        )
+        tx_data = _make_tx_data(merchant_name="Savings Pot")
+        budget_id, review_status = await service.assign_transaction(
+            tx_data, uuid.uuid4(), uuid.uuid4(), rules=[rule]
+        )
+        assert budget_id is None
+        assert review_status is None
+
+
+class TestFKFastPath:
+    """Tests for target_budget_id FK-based fast path (Phase 2.5a)."""
+
+    @pytest.fixture
+    def mock_session(self):
+        session = AsyncMock()
+        session.flush = AsyncMock()
+        return session
+
+    @pytest.fixture
+    def service(self, mock_session):
+        return TransactionAssignmentService(mock_session)
+
+    @pytest.mark.asyncio
+    async def test_uses_target_budget_id_when_set(self, service, mock_session):
+        """When rule has target_budget_id, use it directly (fast path)."""
+        budget = MagicMock(spec=Budget)
+        budget.id = uuid.uuid4()
+
+        rule = _make_rule(
+            target_category="groceries",
+            merchant_exact="Tesco",
+            target_budget_id=budget.id,
+        )
+
+        mock_session.execute.return_value = _mock_execute_result(
+            scalar_one_or_none=budget
+        )
+
+        tx_data = _make_tx_data(merchant_name="Tesco")
+        budget_id, review_status = await service.assign_transaction(
+            tx_data, uuid.uuid4(), uuid.uuid4(), rules=[rule]
+        )
+        assert budget_id == budget.id
+        assert review_status is None  # High confidence (merchant_exact)
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_category_lookup(self, service, mock_session):
+        """When rule has no target_budget_id, fall back to category string lookup."""
+        budget = MagicMock(spec=Budget)
+        budget.id = uuid.uuid4()
+
+        rule = _make_rule(
+            target_category="groceries",
+            merchant_exact="Tesco",
+            target_budget_id=None,  # No FK set yet
+        )
+
+        mock_session.execute.return_value = _mock_execute_result(
+            scalar_one_or_none=budget
+        )
+
+        tx_data = _make_tx_data(merchant_name="Tesco")
+        budget_id, review_status = await service.assign_transaction(
+            tx_data, uuid.uuid4(), uuid.uuid4(), rules=[rule]
+        )
+        assert budget_id == budget.id
+        assert review_status is None
+
+    @pytest.mark.asyncio
+    async def test_fk_deleted_budget_returns_pending(self, service, mock_session):
+        """When target_budget_id points to deleted budget, return pending."""
+        deleted_budget_id = uuid.uuid4()
+        rule = _make_rule(
+            target_category="groceries",
+            merchant_exact="Tesco",
+            target_budget_id=deleted_budget_id,
+        )
+
+        # _find_budget_by_id filters on deleted_at IS NULL, so returns None
+        mock_session.execute.return_value = _mock_execute_result(
+            scalar_one_or_none=None
+        )
+
+        tx_data = _make_tx_data(merchant_name="Tesco")
+        budget_id, review_status = await service.assign_transaction(
+            tx_data, uuid.uuid4(), uuid.uuid4(), rules=[rule]
+        )
+        assert budget_id is None
+        assert review_status == "pending"
 
 
 class TestConfidenceAssessment:

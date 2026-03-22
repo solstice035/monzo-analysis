@@ -170,26 +170,32 @@ class RulesService:
         self,
         account_id: str,
         name: str,
-        target_category: str,
+        target_category: str = "",
         priority: int = 50,
         merchant_pattern: str | None = None,
+        merchant_exact: str | None = None,
         amount_min: int | None = None,
         amount_max: int | None = None,
         monzo_category: str | None = None,
         enabled: bool = True,
+        target_budget_id: str | None = None,
+        is_exclusion: bool = False,
     ) -> CategoryRule:
         """Create a new category rule for an account.
 
         Args:
             account_id: Account ID to associate the rule with
             name: Rule name
-            target_category: Custom category to assign
+            target_category: DEPRECATED — Custom category string (backward compat)
             priority: Rule priority (higher = checked first)
             merchant_pattern: Pattern to match in merchant name
+            merchant_exact: Exact merchant name to match
             amount_min: Minimum amount (pence, negative for spend)
             amount_max: Maximum amount (pence, negative for spend)
             monzo_category: Monzo category to match
             enabled: Whether rule is active
+            target_budget_id: UUID of target budget (preferred over target_category)
+            is_exclusion: Whether this is an exclusion rule (no target budget)
 
         Returns:
             Created category rule
@@ -197,6 +203,8 @@ class RulesService:
         conditions: dict[str, Any] = {}
         if merchant_pattern:
             conditions["merchant_pattern"] = merchant_pattern
+        if merchant_exact:
+            conditions["merchant_exact"] = merchant_exact
         if amount_min is not None:
             conditions["amount_min"] = amount_min
         if amount_max is not None:
@@ -212,6 +220,8 @@ class RulesService:
             target_category=target_category,
             priority=priority,
             enabled=enabled,
+            target_budget_id=target_budget_id,
+            is_exclusion=is_exclusion,
         )
         self._session.add(rule)
         return rule
@@ -221,12 +231,15 @@ class RulesService:
         rule_id: str,
         name: str | None = None,
         merchant_pattern: str | None = None,
+        merchant_exact: str | None = None,
         amount_min: int | None = None,
         amount_max: int | None = None,
         monzo_category: str | None = None,
         target_category: str | None = None,
         priority: int | None = None,
         enabled: bool | None = None,
+        target_budget_id: str | None = None,
+        is_exclusion: bool | None = None,
     ) -> CategoryRule | None:
         """Update an existing category rule.
 
@@ -249,6 +262,10 @@ class RulesService:
             rule.name = name
         if target_category is not None:
             rule.target_category = target_category
+        if target_budget_id is not None:
+            rule.target_budget_id = target_budget_id
+        if is_exclusion is not None:
+            rule.is_exclusion = is_exclusion
         if priority is not None:
             rule.priority = priority
         if enabled is not None:
@@ -259,6 +276,7 @@ class RulesService:
         conditions = dict(rule.conditions)
         for key, value in [
             ("merchant_pattern", merchant_pattern),
+            ("merchant_exact", merchant_exact),
             ("monzo_category", monzo_category),
         ]:
             if value is None:

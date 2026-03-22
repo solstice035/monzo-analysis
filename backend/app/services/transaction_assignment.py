@@ -36,10 +36,11 @@ class TransactionAssignmentService:
 
         Flow:
         1. Run rules engine to get category and matching rule
-        2. If rule is income/transfer → skip envelope assignment
-        3. Look up Budget by category match
-        4. If high confidence (exact merchant match) → auto-assign
-        5. If low confidence / no match → mark pending
+        2. If rule is income/transfer/exclusion → skip envelope assignment
+        3. Fast path: if rule has target_budget_id → use it directly
+        4. Slow path (dual-column compat): fall back to category string lookup
+        5. If high confidence (exact merchant match) → auto-assign
+        6. If low confidence / no match → mark pending
 
         Args:
             transaction_data: Raw Monzo transaction data.
@@ -61,10 +62,19 @@ class TransactionAssignmentService:
         if getattr(matched_rule, "is_income", False) or getattr(matched_rule, "is_transfer", False):
             return None, None
 
-        # Look up budget by target category
-        budget = await self._find_budget_by_category(
-            account_id, matched_rule.target_category
-        )
+        # Exclusion rules intentionally have no target budget
+        if getattr(matched_rule, "is_exclusion", False):
+            return None, None
+
+        # Fast path: use target_budget_id directly if set (Phase 2.5a FK)
+        target_budget_id = getattr(matched_rule, "target_budget_id", None)
+        if target_budget_id:
+            budget = await self._find_budget_by_id(target_budget_id)
+        else:
+            # Slow path (backward compat): fall back to category string lookup
+            budget = await self._find_budget_by_category(
+                account_id, matched_rule.target_category
+            )
 
         if not budget:
             # Category exists in rules but no matching budget — pending review
@@ -162,6 +172,21 @@ class TransactionAssignmentService:
                 # Pattern matches exactly — treat as high confidence
                 return "high"
         return "low"
+
+    async def _find_budget_by_id(
+        self,
+        budget_id: UUID,
+    ) -> Budget | None:
+        """Find an active budget by its ID (fast path for FK-based lookup)."""
+        result = await self._session.execute(
+            select(Budget).where(
+                and_(
+                    Budget.id == budget_id,
+                    Budget.deleted_at.is_(None),
+                )
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def _find_budget_by_category(
         self,
